@@ -1,0 +1,11 @@
+[package]
+name = "furaxel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = "0.16.1"
+bevy_atmosphere = "0.13.0"
+bevy_fly_camera = "0.16.0"
+block-mesh = "0.2.0"
+ndarray = "0.16.1"
