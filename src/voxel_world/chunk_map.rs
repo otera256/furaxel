@@ -6,7 +6,7 @@ use itertools::iproduct;
 
 use crate::voxel_world::{terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::Voxel};
 
-#[derive(Debug, Resource)]
+#[derive(Debug, Resource, Default)]
 pub struct ChunkMap {
     pub chunks: HashMap<IVec3, TerrainChunk>,
 }

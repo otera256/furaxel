@@ -5,7 +5,7 @@ use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_flycam::prelude::*;
 use itertools::iproduct;
 
-use crate::voxel_world::{chunk_map::ChunkMap, terrain_chunk::{TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::{VOXEL_SIZE, Voxel}};
+use crate::voxel_world::{VoxelWorldPlugin, chunk_map::ChunkMap, player::Player, terrain_chunk::{TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::{VOXEL_SIZE, Voxel}};
 
 fn main() {
     App::new()
@@ -13,9 +13,9 @@ fn main() {
             DefaultPlugins,
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
-            PlayerPlugin,
+            NoCameraPlayerPlugin,
+            VoxelWorldPlugin
         ))
-        .insert_resource(ChunkMap::new())
         .add_systems(Startup, setup)
         .run();
 }
@@ -26,6 +26,13 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut chunk_map: ResMut<ChunkMap>,
 ) {
+    // Player Camera
+    commands.spawn((
+        Camera3d::default(),
+        FlyCam,
+        Player
+    ));
+
     // Sun (Light)
     commands.spawn((
         DirectionalLight {
@@ -38,8 +45,8 @@ fn setup(
     ));
 
     // テスト用に複数のチャンクにまたがる球形を生成
-    let radius = 50.0;
-    let chunk_range = -2..2;
+    let radius = 120.0;
+    let chunk_range = -4..4;
     for (x, y, z) in iproduct!(chunk_range.clone(), chunk_range.clone(), chunk_range.clone()) {
         let chunk_pos = IVec3::new(x, y, z);
         let terrain_chunk = TerrainChunk::new_from_fn(
