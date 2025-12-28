@@ -1,16 +1,17 @@
 use std::vec;
 
-use bevy::{math::{IVec3, UVec3}, platform::collections::HashMap};
+use bevy::{ecs::resource::Resource, math::{IVec3, UVec3}, platform::collections::HashMap};
 use block_mesh::ndshape::ConstShape;
 use itertools::iproduct;
 
-use crate::voxel_world::{chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::{EMPTY_VOXEL, Voxel}};
+use crate::voxel_world::{terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::Voxel};
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct ChunkMap {
     pub chunks: HashMap<IVec3, TerrainChunk>,
 }
 
+#[allow(dead_code)]
 impl ChunkMap {
     pub fn new() -> Self {
         Self {
@@ -34,7 +35,7 @@ impl ChunkMap {
     // 隣接するチャンクが存在しないときはEMPTY_VOXELで埋める
     pub fn get_padded_chunk_vec(&self, position: &IVec3) -> Option<Vec<Voxel>> {
         let center_chunk = self.chunks.get(position)?;
-        let mut padded_voxels = vec![EMPTY_VOXEL; PaddedTerrainChunkShape::USIZE];
+        let mut padded_voxels = vec![Voxel::EMPTY; PaddedTerrainChunkShape::USIZE];
         // 中心チャンクをコピー
         for (x, y, z) in iproduct!(0..TERRAIN_CHUNK_SIZE, 0..TERRAIN_CHUNK_SIZE, 0..TERRAIN_CHUNK_SIZE) {
             let voxel = center_chunk.get_local_at(UVec3::new(x, y, z));

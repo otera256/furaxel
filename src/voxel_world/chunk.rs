@@ -3,7 +3,7 @@ use std::ops::Range;
 use bevy::math::UVec3;
 use block_mesh::ndshape::Shape;
 use itertools::iproduct;
-use crate::voxel_world::voxel::{EMPTY_VOXEL, Voxel};
+use crate::voxel_world::voxel::Voxel;
 
 #[derive(Debug, Clone)]
 pub struct Chunk<S: Shape<3, Coord = u32>> {
@@ -11,9 +11,10 @@ pub struct Chunk<S: Shape<3, Coord = u32>> {
     pub shape: S,
 }
 
+#[allow(dead_code)]
 impl<S: Shape<3, Coord = u32>> Chunk<S> {
     pub fn new_empty(shape: S) -> Self {
-        let voxels = vec![EMPTY_VOXEL; shape.usize()].into_boxed_slice();
+        let voxels = vec![Voxel::EMPTY; shape.usize()].into_boxed_slice();
         Self { voxels, shape }
     }
     pub fn new_filled(shape: S, voxel: Voxel) -> Self {

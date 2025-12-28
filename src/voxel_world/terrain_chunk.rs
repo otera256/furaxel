@@ -1,7 +1,7 @@
-use bevy::math::{IVec3, UVec3};
+use bevy::math::{IVec3, UVec3, Vec3};
 use block_mesh::ndshape::ConstShape3u32;
 
-use crate::voxel_world::{chunk::Chunk, voxel::Voxel};
+use crate::voxel_world::{chunk::Chunk, voxel::{VOXEL_SIZE, Voxel}};
 
 pub const TERRAIN_CHUNK_SIZE: u32 = 32;
 pub const PADDED_TERRAIN_CHUNK_SIZE: u32 = TERRAIN_CHUNK_SIZE + 2;
@@ -25,9 +25,13 @@ pub struct TerrainChunk {
     pub position: IVec3,
 }
 
+#[allow(dead_code)]
 impl TerrainChunk {
     pub fn chunk_origin(&self) -> IVec3 {
         self.position * IVec3::splat(TERRAIN_CHUNK_SIZE as i32)
+    }
+    pub fn chunk_origin_f32(&self) -> Vec3 {
+        self.chunk_origin().as_vec3() * VOXEL_SIZE * TERRAIN_CHUNK_SIZE as f32
     }
     pub fn new_empty(position: IVec3) -> Self {
         Self {
