@@ -1,9 +1,21 @@
 use bevy::{prelude::*, math::IVec3, platform::collections::HashMap};
 use itertools::iproduct;
 
+use crate::voxel_world::{terrain_chunk::{TERRAIN_CHUNK_LENGTH, TERRAIN_CHUNK_SIZE}, terrain_generation::WaitForTerrainGeneration};
+
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TerrainChunk {
     pub position: IVec3,
+}
+
+#[allow(dead_code)]
+impl TerrainChunk {
+    pub fn chunk_origin(&self) -> IVec3 {
+        self.position * TERRAIN_CHUNK_SIZE as i32
+    }
+    pub fn chunk_origin_f32(&self) -> Vec3 {
+        self.chunk_origin().as_vec3() * (TERRAIN_CHUNK_SIZE as f32)
+    }
 }
 
 #[derive(Resource, Debug, Default)]
@@ -22,8 +34,8 @@ impl Default for RenderDistanceParams {
     fn default() -> Self {
         Self {
             player_chunk: IVec3::ZERO,
-            horizontal: 8,
-            vertical: 3,
+            horizontal: 20,
+            vertical: 8,
         }
     }
 }
@@ -61,6 +73,9 @@ pub fn update_chunk_entities(
             TerrainChunk {
                 position: chunk_pos,
             },
+            WaitForTerrainGeneration,
+            Transform::from_translation(chunk_pos.as_vec3() * TERRAIN_CHUNK_LENGTH),
+            InheritedVisibility::default(),
         )).id();
         chunk_entities.entities.insert(chunk_pos, entity);
     }

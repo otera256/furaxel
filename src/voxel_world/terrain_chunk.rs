@@ -54,6 +54,17 @@ impl TerrainChunkData {
             position,
         }
     }
+    pub fn new_from_fn_local<F>(position: IVec3, mut f: F) -> Self
+    where 
+        F: FnMut(UVec3) -> Voxel,
+    {
+        Self {
+            chunk: Chunk::new_from_fn(TerrainChunkShape {}, |x, y, z| {
+                f(UVec3::new(x, y, z))
+            }),
+            position,
+        }
+    }
 
     #[inline]
     pub fn get_local_at(&self, pos: UVec3) -> Voxel {

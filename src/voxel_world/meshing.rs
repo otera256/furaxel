@@ -1,8 +1,8 @@
 use block_mesh::{Axis, GreedyQuadsBuffer, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, greedy_quads, ndshape::Shape};
-use bevy::{asset::RenderAssetUsages, mesh::{Indices, PrimitiveTopology}, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, prelude::*};
+use bevy::{asset::RenderAssetUsages, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, mesh::{Indices, PrimitiveTopology}, prelude::*};
 use itertools::Itertools;
 
-use crate::voxel_world::{chunk::Chunk, voxel::VOXEL_SIZE};
+use crate::voxel_world::{chunk::Chunk, chunk_map::ChunkMap, chunking::TerrainChunk, voxel::VOXEL_SIZE};
 
 #[derive(Debug, Resource)]
 pub struct MaterialRepository {
@@ -185,4 +185,43 @@ pub fn material_setup(
         side: grass_material_side,
         bottom: dirt_material,
     });
+}
+
+#[derive(Component)]
+pub struct NeedMeshUpdate;
+
+#[derive(Component)]
+pub struct TerrainMesh;
+
+pub fn terrain_mesh_update(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    material_repo: Res<MaterialRepository>,
+    chunk_map: Res<ChunkMap>,
+    query: Query<(Entity, &TerrainChunk, Option<&Children>), With<NeedMeshUpdate>>,
+    children_query: Query<Entity, With<TerrainMesh>>,
+) {
+    for (entity, terrain_chunk, children) in query.iter() {
+        // 古いメッシュを削除
+        if let Some(children) = children {
+            for child in children.iter() {
+                if children_query.get(child).is_ok() {
+                    commands.entity(child).despawn();
+                }
+            }
+        }
+        // 新しいメッシュを生成してスポーン
+        if let Some(padded_voxels) = chunk_map.get_padded_chunk_vec(&terrain_chunk.position) {
+            for (handle, mesh) in material_repo.create_mesh(padded_voxels) {
+                commands.spawn((
+                    Mesh3d(meshes.add(mesh)),
+                    MeshMaterial3d(handle),
+                    TerrainMesh,
+                    ChildOf(entity),
+                ));
+            }
+            commands.entity(entity)
+                .remove::<NeedMeshUpdate>();
+        }
+    }
 }
