@@ -5,7 +5,7 @@ use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_flycam::prelude::*;
 use itertools::iproduct;
 
-use crate::voxel_world::{VoxelWorldPlugin, chunk_map::ChunkMap, player::Player, terrain_chunk::{TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::{VOXEL_SIZE, Voxel}};
+use crate::voxel_world::{VoxelWorldPlugin, chunk_map::ChunkMap, meshing::MaterialRepository, player::Player, terrain_chunk::{TERRAIN_CHUNK_LENGTH, TerrainChunk}, voxel::Voxel};
 
 fn main() {
     App::new()
@@ -16,15 +16,15 @@ fn main() {
             NoCameraPlayerPlugin,
             VoxelWorldPlugin
         ))
-        .add_systems(Startup, setup)
+        .add_systems(PostStartup, setup)
         .run();
 }
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut chunk_map: ResMut<ChunkMap>,
+    material_repo: Res<MaterialRepository>,
 ) {
     // Player Camera
     commands.spawn((
@@ -56,7 +56,7 @@ fn setup(
                 let pos = world_pos.as_vec3() + Vec3::splat(0.5);
                 let distance = pos.distance(center);
                 if distance <= radius {
-                    Voxel::DEBUG
+                    Voxel::new(2)
                 } else {
                     Voxel::EMPTY
                 }
@@ -65,17 +65,16 @@ fn setup(
         chunk_map.insert(terrain_chunk);
     }
     // チャンクメッシュを生成してスポーン
-    let material = materials.add(Color::srgb(0.3, 0.5, 0.3));
     for (x, y, z) in iproduct!(chunk_range.clone(), chunk_range.clone(), chunk_range.clone()) {
         let chunk_pos = IVec3::new(x, y, z);
         if let Some(padded_voxels) = chunk_map.get_padded_chunk_vec(&chunk_pos) {
-            let mesh = crate::voxel_world::meshing::crate_terrain_chunk_mesh(padded_voxels);
-            commands.spawn((
-                Mesh3d(meshes.add(mesh)),
-                MeshMaterial3d(material.clone()),
-                Transform::from_translation(chunk_pos.as_vec3() * TERRAIN_CHUNK_SIZE as f32 * VOXEL_SIZE),
-                Name::new(format!("Terrain Chunk Mesh: ({}, {}, {})", x, y, z))
-            ));
+            for (handle, mesh) in material_repo.create_mesh(padded_voxels) {
+                commands.spawn((
+                    Mesh3d(meshes.add(mesh)),
+                    MeshMaterial3d(handle),
+                    Transform::from_translation(chunk_pos.as_vec3() * TERRAIN_CHUNK_LENGTH),
+                ));
+            }
         }
     }
 }

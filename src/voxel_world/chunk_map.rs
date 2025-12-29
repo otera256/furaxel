@@ -4,7 +4,7 @@ use bevy::{ecs::resource::Resource, math::{IVec3, UVec3}, platform::collections:
 use block_mesh::ndshape::ConstShape;
 use itertools::iproduct;
 
-use crate::voxel_world::{terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::Voxel};
+use crate::voxel_world::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::Voxel};
 
 #[derive(Debug, Resource, Default)]
 pub struct ChunkMap {
@@ -33,7 +33,7 @@ impl ChunkMap {
     // meshingする際に使用。隣接する6チャンクの1層分を取り込んで取得する
     // positionのチャンクが存在しないときはNoneを返す
     // 隣接するチャンクが存在しないときはEMPTY_VOXELで埋める
-    pub fn get_padded_chunk_vec(&self, position: &IVec3) -> Option<Vec<Voxel>> {
+    pub fn get_padded_chunk_vec(&self, position: &IVec3) -> Option<Chunk<PaddedTerrainChunkShape>> {
         let center_chunk = self.chunks.get(position)?;
         let mut padded_voxels = vec![Voxel::EMPTY; PaddedTerrainChunkShape::USIZE];
         // 中心チャンクをコピー
@@ -91,7 +91,10 @@ impl ChunkMap {
                 padded_voxels[index] = voxel;
             }
         }
-        Some(padded_voxels)
+        Some(Chunk {
+            voxels: padded_voxels.into_boxed_slice(),
+            shape: PaddedTerrainChunkShape {},
+        })
     }
 
     pub fn get_mut(&mut self, position: &IVec3) -> Option<&mut TerrainChunk> {

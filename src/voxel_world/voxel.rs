@@ -2,7 +2,7 @@ use block_mesh::{MergeVoxel, Voxel as MergableVoxel};
 
 pub const VOXEL_SIZE: f32 = 1.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Voxel{
     pub id: u16,
 }
@@ -10,6 +10,10 @@ pub struct Voxel{
 impl Voxel {
     pub const EMPTY: Self = Self { id: 0 };
     pub const DEBUG: Self = Self { id: 1 };
+
+    pub fn new(id: u16) -> Self {
+        Self { id }
+    }
 }
 
 impl MergableVoxel for Voxel {
