@@ -4,11 +4,11 @@ use bevy::{ecs::resource::Resource, math::{IVec3, UVec3}, platform::collections:
 use block_mesh::ndshape::ConstShape;
 use itertools::iproduct;
 
-use crate::voxel_world::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunk}, voxel::Voxel};
+use crate::voxel_world::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunkData}, voxel::Voxel};
 
 #[derive(Debug, Resource, Default)]
 pub struct ChunkMap {
-    pub chunks: HashMap<IVec3, TerrainChunk>,
+    pub chunks: HashMap<IVec3, TerrainChunkData>,
 }
 
 #[allow(dead_code)]
@@ -19,11 +19,11 @@ impl ChunkMap {
         }
     }
 
-    pub fn insert(&mut self, chunk: TerrainChunk) {
+    pub fn insert(&mut self, chunk: TerrainChunkData) {
         self.chunks.insert(chunk.position, chunk);
     }
 
-    pub fn get(&self, position: &IVec3) -> Option<&TerrainChunk> {
+    pub fn get(&self, position: &IVec3) -> Option<&TerrainChunkData> {
         self.chunks.get(position)
     }
     pub fn get_slice(&self, position: &IVec3) -> Option<&[Voxel]> {
@@ -97,7 +97,7 @@ impl ChunkMap {
         })
     }
 
-    pub fn get_mut(&mut self, position: &IVec3) -> Option<&mut TerrainChunk> {
+    pub fn get_mut(&mut self, position: &IVec3) -> Option<&mut TerrainChunkData> {
         self.chunks.get_mut(position)
     }
 

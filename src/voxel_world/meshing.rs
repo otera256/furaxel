@@ -1,8 +1,8 @@
-use block_mesh::{Axis, GreedyQuadsBuffer, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, greedy_quads, ndshape::{ConstShape, Shape}};
-use bevy::{asset::RenderAssetUsages, mesh::{Indices, PrimitiveTopology}, prelude::*};
+use block_mesh::{Axis, GreedyQuadsBuffer, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, greedy_quads, ndshape::Shape};
+use bevy::{asset::RenderAssetUsages, mesh::{Indices, PrimitiveTopology}, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, prelude::*};
 use itertools::Itertools;
 
-use crate::voxel_world::{chunk::Chunk, terrain_chunk::PaddedTerrainChunkShape, voxel::{VOXEL_SIZE, Voxel}};
+use crate::voxel_world::{chunk::Chunk, voxel::VOXEL_SIZE};
 
 #[derive(Debug, Resource)]
 pub struct MaterialRepository {
@@ -11,6 +11,7 @@ pub struct MaterialRepository {
     pub materials: Vec<[Handle<StandardMaterial>; 6]>,
 }
 
+#[allow(dead_code)]
 pub enum MaterialType {
     None,
     Uniform{
@@ -99,7 +100,7 @@ impl MaterialRepository {
                     indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
                     positions.extend_from_slice(&face.quad_mesh_positions(quad, VOXEL_SIZE));
                     normals.extend_from_slice(&face.quad_mesh_normals());
-                    uvs.extend_from_slice(&face.tex_coords(Axis::X, false, quad));
+                    uvs.extend_from_slice(&face.tex_coords(Axis::X, true, quad));
                 }
 
                 Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
@@ -130,4 +131,58 @@ impl MaterialRepository {
             .map(|(handle, quads)| (handle, MeshBuilder::mew(quads).get_mesh()))
             .collect()
     }
+}
+
+pub fn material_setup(
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut material_repo: ResMut<MaterialRepository>,
+    asset_server: Res<AssetServer>,
+) {
+    let loading_seettings = |s: &mut _| {
+        *s = ImageLoaderSettings {
+            sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::Repeat,
+                address_mode_v: ImageAddressMode::Repeat,
+                ..default()
+            }),
+            ..default()
+        }
+    };
+    let default_material = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load_with_settings("textures/default.png", loading_seettings)),
+        ..default()
+    });
+
+    material_repo.default_material = default_material.clone();
+
+    // Id 0: Empty voxel
+    material_repo.register_material(MaterialType::None);
+    // Id 1: Debug voxel (uniform material)
+    material_repo.register_material(MaterialType::Uniform { material: default_material });
+    // Id 2: Dirt voxel (uniform material)
+    let dirt_material = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load_with_settings("textures/dirt.png", loading_seettings)),
+        perceptual_roughness: 0.9,
+        reflectance: 0.05,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: dirt_material.clone() });
+    // Id 3: Grass voxel (column material)
+    let grass_material_top = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load_with_settings("textures/grass_top.png", loading_seettings)),
+        perceptual_roughness: 0.9,
+        reflectance: 0.2,
+        ..default()
+    });
+    let grass_material_side = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load_with_settings("textures/grass_side.png", loading_seettings)),
+        perceptual_roughness: 0.9,
+        reflectance: 0.1,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Column {
+        top: grass_material_top,
+        side: grass_material_side,
+        bottom: dirt_material,
+    });
 }

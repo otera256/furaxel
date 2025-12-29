@@ -7,6 +7,7 @@ pub struct Voxel{
     pub id: u16,
 }
 
+#[allow(dead_code)]
 impl Voxel {
     pub const EMPTY: Self = Self { id: 0 };
     pub const DEBUG: Self = Self { id: 1 };

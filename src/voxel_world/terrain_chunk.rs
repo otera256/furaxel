@@ -21,13 +21,13 @@ pub(super) type PaddedTerrainChunkShape = ConstShape3u32<
 
 
 #[derive(Debug, Clone)]
-pub struct TerrainChunk {
+pub struct TerrainChunkData {
     pub chunk: Chunk<TerrainChunkShape>,
     pub position: IVec3,
 }
 
 #[allow(dead_code)]
-impl TerrainChunk {
+impl TerrainChunkData {
     pub fn chunk_origin(&self) -> IVec3 {
         self.position * IVec3::splat(TERRAIN_CHUNK_SIZE as i32)
     }
