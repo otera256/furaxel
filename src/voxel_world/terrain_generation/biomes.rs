@@ -2,7 +2,7 @@ use bevy::platform::collections::HashMap;
 use noise::{NoiseFn, Perlin};
 use std::sync::Arc;
 use crate::voxel_world::voxel::Voxel;
-use super::feature::{Feature, TreeFeature};
+use super::feature::{Feature, TreeFeature, CactusFeature, FlowerFeature, PineTreeFeature, BirchTreeFeature};
 
 pub struct Biome {
     pub id: u8,
@@ -31,8 +31,14 @@ impl BiomeRegistry {
             name: "Plains",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(TreeFeature)],
-            feature_probability: 0.01,
+            features: vec![
+                Arc::new(TreeFeature),
+                Arc::new(BirchTreeFeature),
+                Arc::new(FlowerFeature),
+                Arc::new(FlowerFeature),
+                Arc::new(FlowerFeature),
+            ],
+            feature_probability: 0.05,
         });
 
         // Desert
@@ -41,8 +47,8 @@ impl BiomeRegistry {
             name: "Desert",
             surface_block: Voxel::SAND,
             sub_surface_block: Voxel::SAND,
-            features: vec![],
-            feature_probability: 0.0,
+            features: vec![Arc::new(CactusFeature)],
+            feature_probability: 0.01,
         });
 
         // Mountains
@@ -51,8 +57,8 @@ impl BiomeRegistry {
             name: "Mountains",
             surface_block: Voxel::STONE,
             sub_surface_block: Voxel::STONE,
-            features: vec![],
-            feature_probability: 0.0,
+            features: vec![Arc::new(PineTreeFeature)],
+            feature_probability: 0.02,
         });
 
         // Snow
@@ -61,8 +67,8 @@ impl BiomeRegistry {
             name: "Snow",
             surface_block: Voxel::SNOW,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(TreeFeature)],
-            feature_probability: 0.005,
+            features: vec![Arc::new(PineTreeFeature)],
+            feature_probability: 0.02,
         });
 
         // Ocean

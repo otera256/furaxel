@@ -22,6 +22,13 @@ impl Voxel {
     pub const GRAVEL: Self = Self { id: 10 };
     pub const MUD: Self = Self { id: 11 };
     pub const CLAY: Self = Self { id: 12 };
+    pub const CACTUS: Self = Self { id: 13 };
+    pub const FLOWER_RED: Self = Self { id: 14 };
+    pub const FLOWER_YELLOW: Self = Self { id: 15 };
+    pub const PINE_LOG: Self = Self { id: 16 };
+    pub const PINE_LEAVES: Self = Self { id: 17 };
+    pub const BIRCH_LOG: Self = Self { id: 18 };
+    pub const BIRCH_LEAVES: Self = Self { id: 19 };
 
     pub fn new(id: u16) -> Self {
         Self { id }

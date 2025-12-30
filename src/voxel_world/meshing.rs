@@ -299,6 +299,64 @@ pub fn material_setup(
         ..default()
     });
     material_repo.register_material(MaterialType::Uniform { material: clay_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 13: Cactus
+    let cactus_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.1, 0.5, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: cactus_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 14: Flower Red
+    let flower_red_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.9, 0.1, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: flower_red_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 15: Flower Yellow
+    let flower_yellow_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.9, 0.9, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: flower_yellow_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 16: Pine Log
+    let pine_log_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.3, 0.2, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: pine_log_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 17: Pine Leaves
+    let pine_leaves_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.05, 0.3, 0.05, 0.8),
+        perceptual_roughness: 0.8,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: pine_leaves_material, visibility: VoxelVisibility::Translucent });
+
+    // Id 18: Birch Log
+    let birch_log_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.9, 0.9, 0.8),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: birch_log_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 19: Birch Leaves
+    let birch_leaves_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.4, 0.8, 0.4, 0.8),
+        perceptual_roughness: 0.8,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: birch_leaves_material, visibility: VoxelVisibility::Translucent });
 }
 
 #[derive(Component)]
