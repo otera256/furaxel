@@ -34,7 +34,7 @@ impl Default for RenderDistanceParams {
     fn default() -> Self {
         Self {
             player_chunk: IVec3::ZERO,
-            horizontal: 12,
+            horizontal: 15,
             vertical: 5,
         }
     }

@@ -1,4 +1,5 @@
 use std::vec;
+use std::collections::HashSet;
 
 use bevy::{ecs::resource::Resource, math::{IVec3, UVec3}, platform::collections::HashMap};
 use block_mesh::ndshape::ConstShape;
@@ -101,16 +102,42 @@ impl ChunkMap {
         self.chunks.get_mut(position)
     }
 
-    pub fn set_bulk(&mut self, changes: Vec<(IVec3, Voxel)>) {
+    pub fn set_bulk(&mut self, changes: Vec<(IVec3, Voxel)>) -> HashSet<IVec3> {
+        let mut chunks_to_update = HashSet::new();
+        let mut changes_by_chunk: HashMap<IVec3, Vec<(IVec3, Voxel)>> = HashMap::new();
+        
         for (world_pos, voxel) in changes {
-            if let Some(target_voxel) = self.get_at_mut(world_pos) {
-                // Only overwrite if the target is empty, water, or snow (soft blocks)
-                // Or if we want strict replacement. For features like trees, we usually don't want to replace stone/dirt.
-                if target_voxel.id == 0 || target_voxel.id == 5 || target_voxel.id == 9 {
-                    *target_voxel = voxel;
+            let chunk_pos = world_pos.div_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32));
+            changes_by_chunk.entry(chunk_pos).or_default().push((world_pos, voxel));
+        }
+
+        for (chunk_pos, chunk_changes) in changes_by_chunk {
+            if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
+                let mut modified = false;
+                for (world_pos, voxel) in chunk_changes {
+                    let local_pos = (world_pos.rem_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32))).as_uvec3();
+                    let target_voxel = chunk.get_local_at_mut(local_pos);
+                    
+                    // Only overwrite if the target is empty, water, or snow (soft blocks)
+                    if target_voxel.id == Voxel::EMPTY.id || target_voxel.id == Voxel::WATER.id || target_voxel.id == Voxel::SNOW.id {
+                        *target_voxel = voxel;
+                        modified = true;
+
+                        // Check for neighbor updates
+                        if local_pos.x == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(-1, 0, 0)); }
+                        if local_pos.x == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(1, 0, 0)); }
+                        if local_pos.y == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(0, -1, 0)); }
+                        if local_pos.y == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 1, 0)); }
+                        if local_pos.z == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 0, -1)); }
+                        if local_pos.z == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 0, 1)); }
+                    }
+                }
+                if modified {
+                    chunks_to_update.insert(chunk_pos);
                 }
             }
         }
+        chunks_to_update
     }
 
     pub fn get_at(&self, world_pos: IVec3) -> Option<Voxel> {

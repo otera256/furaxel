@@ -241,7 +241,20 @@ fn queue_feature_tasks(
                 let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &config);
 
                 command_queue.push(move |world: &mut World| {
-                    world.resource_mut::<ChunkMap>().set_bulk(changes);
+                    let modified_chunks = world.resource_mut::<ChunkMap>().set_bulk(changes);
+                    
+                    // Collect entities to update first to avoid cloning the entire ChunkEntities map
+                    // and to avoid borrowing conflict with world.entity_mut
+                    let entities_to_update: Vec<Entity> = {
+                        let chunk_entities = world.resource::<ChunkEntities>();
+                        modified_chunks.iter()
+                            .filter_map(|pos| chunk_entities.entities.get(pos).copied())
+                            .collect()
+                    };
+
+                    for entity in entities_to_update {
+                        world.entity_mut(entity).insert(NeedMeshUpdate);
+                    }
                 });
                 command_queue
             });
