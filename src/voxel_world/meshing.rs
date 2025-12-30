@@ -1,4 +1,4 @@
-use block_mesh::{Axis, GreedyQuadsBuffer, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, greedy_quads, ndshape::Shape};
+use block_mesh::{Axis, GreedyQuadsBuffer, MergeVoxel, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, VoxelVisibility, greedy_quads, ndshape::Shape};
 use bevy::{asset::RenderAssetUsages, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, mesh::{Indices, PrimitiveTopology}, prelude::*};
 use itertools::Itertools;
 
@@ -9,6 +9,7 @@ pub struct MaterialRepository {
     // if default_material is shown, some error occurred
     pub default_material: Handle<StandardMaterial>,
     pub materials: Vec<[Handle<StandardMaterial>; 6]>,
+    pub visibilities: Vec<VoxelVisibility>,
 }
 
 #[allow(dead_code)]
@@ -16,11 +17,13 @@ pub enum MaterialType {
     None,
     Uniform{
         material: Handle<StandardMaterial>,
+        visibility: VoxelVisibility,
     },
     Column{
         top: Handle<StandardMaterial>,
         side: Handle<StandardMaterial>,
         bottom: Handle<StandardMaterial>,
+        visibility: VoxelVisibility,
     },
     PerFace{
         west: Handle<StandardMaterial>,
@@ -29,6 +32,7 @@ pub enum MaterialType {
         east: Handle<StandardMaterial>,
         top: Handle<StandardMaterial>,
         south: Handle<StandardMaterial>,
+        visibility: VoxelVisibility,
     }
 }
 
@@ -37,27 +41,29 @@ impl Default for MaterialRepository {
         Self {
             default_material: Handle::default(),
             materials: Vec::new(),
+            visibilities: Vec::new(),
         }
     }
 }
 
 impl MaterialRepository {
     pub fn register_material(&mut self, material: MaterialType) -> usize {
-        let handles = match material {
+        let (handles, visibility) = match material {
             MaterialType::None => {
-                std::array::from_fn(|_| self.default_material.clone())
+                (std::array::from_fn(|_| self.default_material.clone()), VoxelVisibility::Empty)
             },
-            MaterialType::Uniform { material } => {
-                std::array::from_fn(|_| material.clone())
+            MaterialType::Uniform { material, visibility } => {
+                (std::array::from_fn(|_| material.clone()), visibility)
             },
-            MaterialType::Column { top, side, bottom } => {
-                [side.clone(), bottom.clone(), side.clone(), side.clone(), top.clone(), side.clone()]
+            MaterialType::Column { top, side, bottom, visibility } => {
+                ([side.clone(), bottom.clone(), side.clone(), side.clone(), top.clone(), side.clone()], visibility)
             },
-            MaterialType::PerFace { west, bottom, north, east, top, south } => {
-                [west.clone(), bottom.clone(), north.clone(), east.clone(), top.clone(), south.clone()]
+            MaterialType::PerFace { west, bottom, north, east, top, south, visibility } => {
+                ([west.clone(), bottom.clone(), north.clone(), east.clone(), top.clone(), south.clone()], visibility)
             },
         };
         self.materials.push(handles);
+        self.visibilities.push(visibility);
         self.materials.len() - 1
     }
     pub fn get_material_handle(&self, material_index: usize, face_index: usize) -> Handle<StandardMaterial> {
@@ -67,13 +73,46 @@ impl MaterialRepository {
             self.materials[material_index][face_index].clone()
         }
     }
+
+    fn get_visibility(&self, voxel_id: u16) -> VoxelVisibility {
+        if (voxel_id as usize) < self.visibilities.len() {
+            self.visibilities[voxel_id as usize]
+        } else {
+            VoxelVisibility::Opaque
+        }
+    }
+
     pub fn create_mesh<S: Shape<3, Coord = u32>>(&self, chunk: Chunk<S>) -> Vec<(Handle<StandardMaterial>, Mesh)> {
         let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
 
         let mut buffer = GreedyQuadsBuffer::new(chunk.voxels.len());
         
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        struct MeshingVoxel {
+            id: u16,
+            visibility: VoxelVisibility,
+        }
+
+        impl MergeVoxel for MeshingVoxel {
+            type MergeValue = u16;
+            fn merge_value(&self) -> Self::MergeValue {
+                self.id
+            }
+        }
+
+        impl block_mesh::Voxel for MeshingVoxel {
+            fn get_visibility(&self) -> VoxelVisibility {
+                self.visibility
+            }
+        }
+
+        let meshing_voxels: Vec<MeshingVoxel> = chunk.voxels.iter().map(|v| MeshingVoxel {
+            id: v.id,
+            visibility: self.get_visibility(v.id),
+        }).collect();
+
         greedy_quads(
-            chunk.as_slice(),
+            &meshing_voxels,
             &chunk.shape,
             [0; 3],
             chunk.shape.as_array().map(|d| d - 1),
@@ -158,7 +197,7 @@ pub fn material_setup(
     // Id 0: Empty voxel
     material_repo.register_material(MaterialType::None);
     // Id 1: Debug voxel (uniform material)
-    material_repo.register_material(MaterialType::Uniform { material: default_material });
+    material_repo.register_material(MaterialType::Uniform { material: default_material, visibility: VoxelVisibility::Opaque });
     // Id 2: Dirt voxel (uniform material)
     let dirt_material = materials.add(StandardMaterial {
         base_color_texture: Some(asset_server.load_with_settings("textures/dirt.png", loading_seettings)),
@@ -166,7 +205,7 @@ pub fn material_setup(
         reflectance: 0.05,
         ..default()
     });
-    material_repo.register_material(MaterialType::Uniform { material: dirt_material.clone() });
+    material_repo.register_material(MaterialType::Uniform { material: dirt_material.clone(), visibility: VoxelVisibility::Opaque });
     // Id 3: Grass voxel (column material)
     let grass_material_top = materials.add(StandardMaterial {
         base_color_texture: Some(asset_server.load_with_settings("textures/grass_top.png", loading_seettings)),
@@ -184,7 +223,82 @@ pub fn material_setup(
         top: grass_material_top,
         side: grass_material_side,
         bottom: dirt_material,
+        visibility: VoxelVisibility::Opaque,
     });
+
+    // Id 4: Stone
+    let stone_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.5, 0.5, 0.5),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: stone_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 5: Water
+    let water_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.0, 0.3, 0.8, 0.5),
+        perceptual_roughness: 0.1,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: water_material, visibility: VoxelVisibility::Translucent });
+
+    // Id 6: Sand
+    let sand_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.9, 0.85, 0.6),
+        perceptual_roughness: 0.9,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: sand_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 7: Wood
+    let wood_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.4, 0.25, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: wood_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 8: Leaves
+    let leaves_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.1, 0.6, 0.1, 0.8),
+        perceptual_roughness: 0.8,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: leaves_material, visibility: VoxelVisibility::Translucent });
+
+    // Id 9: Snow
+    let snow_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.95, 0.95, 1.0),
+        perceptual_roughness: 0.5,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: snow_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 10: Gravel
+    let gravel_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.4, 0.4, 0.4),
+        perceptual_roughness: 0.9,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: gravel_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 11: Mud
+    let mud_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.3, 0.2, 0.1),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: mud_material, visibility: VoxelVisibility::Opaque });
+
+    // Id 12: Clay
+    let clay_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.7, 0.4, 0.3),
+        perceptual_roughness: 0.8,
+        ..default()
+    });
+    material_repo.register_material(MaterialType::Uniform { material: clay_material, visibility: VoxelVisibility::Opaque });
 }
 
 #[derive(Component)]

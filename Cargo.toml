@@ -12,11 +12,4 @@ block-mesh = "0.2.0"
 itertools = "0.14.0"
 ndarray = "0.17.1"
 noise = "0.9.0"
-
-# dev profileでは最適化を少なくする
-[profile.dev]
-opt-level = 1
-
-# dev profileでも外部のライブラリの最適化は多くする
-[profile.dev.package."*"]
-opt-level = 3
+rand = "0.9.2"

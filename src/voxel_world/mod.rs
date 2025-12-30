@@ -19,6 +19,7 @@ pub struct VoxelWorldPlugin;
 impl Plugin for VoxelWorldPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_plugins(TerrainGenerationPlugin)
             .insert_resource(RenderDistanceParams::default())
             .insert_resource(ChunkEntities::default())
             .insert_resource(ChunkMap::default())
@@ -32,9 +33,6 @@ impl Plugin for VoxelWorldPlugin {
             ))
             .add_systems(Update, (
                 update_chunk_entities.run_if(resource_changed::<RenderDistanceParams>),
-                spawn_terrain_generation_tasks,
-                handle_terrain_generation_tasks,
-                terrain_mesh_update,
             ))
             .add_systems(PostUpdate, (
                 terrain_mesh_update,
@@ -47,8 +45,9 @@ fn setup_world(
     mut commands: Commands,
 ) {
     let cascade_shadow_config = CascadeShadowConfigBuilder {
-        first_cascade_far_bound: 0.3,
-        maximum_distance: 3.0,
+        first_cascade_far_bound: 4.0,
+        maximum_distance: 300.0,
+        num_cascades: 2,
         ..default()
     }.build();
     // Player Camera
