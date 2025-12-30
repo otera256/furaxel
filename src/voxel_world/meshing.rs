@@ -215,6 +215,10 @@ fn create_material(
     })
 }
 
+// メッシュが作成中または既に作成されたチャンクに付与されるコンポーネント
+#[derive(Component)]
+pub struct MeshQueued;
+
 #[derive(Component)]
 pub struct NeedMeshUpdate;
 
@@ -243,7 +247,8 @@ fn queue_mesh_tasks(
             });
             commands.entity(entity)
                 .remove::<NeedMeshUpdate>()
-                .insert(ComputingMesh(task));
+                .insert(ComputingMesh(task))
+                .insert(MeshQueued);
         }
     }
 }
@@ -308,6 +313,7 @@ fn immediate_mesh_update(
         }
         commands.entity(entity)
             .remove::<NeedImmediateMeshUpdate>()
-            .remove::<NeedMeshUpdate>(); // Also remove NeedMeshUpdate if present
+            .remove::<NeedMeshUpdate>() // Also remove NeedMeshUpdate if present
+            .insert(MeshQueued);
     }
 }

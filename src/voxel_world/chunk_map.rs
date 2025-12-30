@@ -122,14 +122,6 @@ impl ChunkMap {
                     if target_voxel.id == Voxel::EMPTY.id || target_voxel.id == Voxel::WATER.id || target_voxel.id == Voxel::SNOW.id {
                         *target_voxel = voxel;
                         modified = true;
-
-                        // Check for neighbor updates
-                        if local_pos.x == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(-1, 0, 0)); }
-                        if local_pos.x == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(1, 0, 0)); }
-                        if local_pos.y == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(0, -1, 0)); }
-                        if local_pos.y == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 1, 0)); }
-                        if local_pos.z == 0 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 0, -1)); }
-                        if local_pos.z == TERRAIN_CHUNK_SIZE - 1 { chunks_to_update.insert(chunk_pos + IVec3::new(0, 0, 1)); }
                     }
                 }
                 if modified {

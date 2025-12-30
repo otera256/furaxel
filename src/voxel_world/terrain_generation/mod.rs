@@ -6,42 +6,23 @@ mod generation;
 use bevy::{
     ecs::world::CommandQueue, prelude::*, tasks::{AsyncComputeTaskPool, Task, futures::check_ready}
 };
-use itertools::Itertools;
+use itertools::{Itertools, iproduct};
 use std::sync::Arc;
 use crate::voxel_world::{
-    chunk_map::ChunkMap, chunking::{ChunkEntities, RenderDistanceParams, TerrainChunk}, meshing::NeedMeshUpdate, terrain_generation::storage::TerrainGenerationStorage
+    chunk_map::ChunkMap, chunking::{ChunkEntities, RenderDistanceParams, TerrainChunk}, meshing::{MeshQueued, NeedMeshUpdate}, terrain_generation::storage::TerrainGenerationStorage
 };
 use self::biomes::BiomeRegistry;
 
 pub struct TerrainGenerationPlugin;
 
-fn handle_feature_tasks(
-    mut commands: Commands,
-    mut tasks: Query<(Entity, &mut ComputingFeatures, &TerrainChunk)>,
-    chunk_entities: Res<ChunkEntities>,
-) {
-    for (entity, mut task, terrain_chunk) in &mut tasks {
-        if let Some(mut command_queue) = check_ready(&mut task.0) {
-            commands.append(&mut command_queue);
-            commands.entity(entity)
-                .remove::<ComputingFeatures>();
-            
-            // Notify neighbors for mesh update
-            for (dx, dy, dz) in itertools::iproduct!(-1..=1, -1..=1, -1..=1) {
-                let offset = IVec3::new(dx, dy, dz);
-                let neighbor_pos = terrain_chunk.position + offset;
-                if let Some(neighbor_entity) = chunk_entities.entities.get(&neighbor_pos) {
-                    commands.entity(*neighbor_entity).insert(NeedMeshUpdate);
-                }
-            }
-        }
-    }
-}
+#[derive(Event, Message, Debug, Clone, Copy)]
+pub struct ChunkGeneratedEvent(pub IVec3);
 
 impl Plugin for TerrainGenerationPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(TerrainGenerationStorage::default())
+            .add_message::<ChunkGeneratedEvent>()
             .add_systems(Startup, setup_terrain_generation)
             .add_systems(Update, (
                 queue_altitude_tasks,
@@ -50,6 +31,7 @@ impl Plugin for TerrainGenerationPlugin {
                 handle_base_terrain_tasks,
                 queue_feature_tasks,
                 handle_feature_tasks,
+                handle_chunk_generated_events,
             ))
             ;
     }
@@ -75,6 +57,9 @@ pub struct WaitForTerrainGeneration;
 
 #[derive(Component, Debug)]
 struct ComputingAltitude(Task<CommandQueue>);
+
+#[derive(Component)]
+struct WaitForBaseTerrain;
 
 #[derive(Component, Debug)]
 struct ComputingBaseTerrain(Task<CommandQueue>);
@@ -136,9 +121,6 @@ fn queue_altitude_tasks(
         }
     }
 }
-
-#[derive(Component)]
-struct WaitForBaseTerrain;
 
 fn handle_altitude_tasks(
     mut commands: Commands,
@@ -241,20 +223,7 @@ fn queue_feature_tasks(
                 let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &config);
 
                 command_queue.push(move |world: &mut World| {
-                    let modified_chunks = world.resource_mut::<ChunkMap>().set_bulk(changes);
-                    
-                    // Collect entities to update first to avoid cloning the entire ChunkEntities map
-                    // and to avoid borrowing conflict with world.entity_mut
-                    let entities_to_update: Vec<Entity> = {
-                        let chunk_entities = world.resource::<ChunkEntities>();
-                        modified_chunks.iter()
-                            .filter_map(|pos| chunk_entities.entities.get(pos).copied())
-                            .collect()
-                    };
-
-                    for entity in entities_to_update {
-                        world.entity_mut(entity).insert(NeedMeshUpdate);
-                    }
+                    world.resource_mut::<ChunkMap>().set_bulk(changes);
                 });
                 command_queue
             });
@@ -262,6 +231,60 @@ fn queue_feature_tasks(
             commands.entity(entity)
                 .remove::<WaitForNeighbors>()
                 .insert(ComputingFeatures(task));
+        }
+    }
+}
+
+fn handle_feature_tasks(
+    mut commands: Commands,
+    mut tasks: Query<(Entity, &mut ComputingFeatures, &TerrainChunk)>,
+    mut event_writer: MessageWriter<ChunkGeneratedEvent>,
+) {
+    for (entity, mut task, terrain_chunk) in &mut tasks {
+        if let Some(mut command_queue) = check_ready(&mut task.0) {
+            commands.append(&mut command_queue);
+            commands.entity(entity)
+                .remove::<ComputingFeatures>();
+            
+            event_writer.write(ChunkGeneratedEvent(terrain_chunk.position));
+        }
+    }
+}
+
+fn handle_chunk_generated_events(
+    mut commands: Commands,
+    mut events: MessageReader<ChunkGeneratedEvent>,
+    mut storage: ResMut<TerrainGenerationStorage>,
+    chunk_entities: Res<ChunkEntities>,
+    mesh_queued_query: Query<&MeshQueued>,
+) {
+    for event in events.read() {
+        let chunk_pos = event.0;
+        storage.fully_generated.insert(chunk_pos);
+
+        let mut candidates = Vec::new();
+        candidates.push(chunk_pos);
+        for (dx, dy, dz) in itertools::iproduct!(-1..=1, -1..=1, -1..=1) {
+            if dx == 0 && dy == 0 && dz == 0 { continue; }
+            candidates.push(chunk_pos + IVec3::new(dx, dy, dz));
+        }
+
+        for pos in candidates {
+            if storage.fully_generated.contains(&pos) {
+                if let Some(entity) = chunk_entities.entities.get(&pos) {
+                    let has_mesh = mesh_queued_query.get(*entity).is_ok();
+
+                    let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
+                        .all(|(dx, dy, dz)| {
+                            let neighbor_pos = pos + IVec3::new(dx, dy, dz);
+                            storage.fully_generated.contains(&neighbor_pos)
+                        });
+
+                    if !has_mesh && all_neighbors_ready {
+                        commands.entity(*entity).insert(NeedMeshUpdate);
+                    }
+                }
+            }
         }
     }
 }
