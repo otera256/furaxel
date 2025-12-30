@@ -2,7 +2,7 @@ use block_mesh::{Axis, GreedyQuadsBuffer, MergeVoxel, OrientedBlockFace, RIGHT_H
 use bevy::{asset::RenderAssetUsages, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, mesh::{Indices, PrimitiveTopology}, prelude::*};
 use itertools::Itertools;
 
-use crate::voxel_world::{chunk::Chunk, chunk_map::ChunkMap, chunking::TerrainChunk, voxel::VOXEL_SIZE};
+use crate::voxel_world::{chunk::Chunk, chunk_map::ChunkMap, chunking::TerrainChunk, voxel::{self, VoxelMaterial, VOXEL_SIZE}};
 
 #[derive(Debug, Resource)]
 pub struct MaterialRepository {
@@ -10,30 +10,6 @@ pub struct MaterialRepository {
     pub default_material: Handle<StandardMaterial>,
     pub materials: Vec<[Handle<StandardMaterial>; 6]>,
     pub visibilities: Vec<VoxelVisibility>,
-}
-
-#[allow(dead_code)]
-pub enum MaterialType {
-    None,
-    Uniform{
-        material: Handle<StandardMaterial>,
-        visibility: VoxelVisibility,
-    },
-    Column{
-        top: Handle<StandardMaterial>,
-        side: Handle<StandardMaterial>,
-        bottom: Handle<StandardMaterial>,
-        visibility: VoxelVisibility,
-    },
-    PerFace{
-        west: Handle<StandardMaterial>,
-        bottom: Handle<StandardMaterial>,
-        north: Handle<StandardMaterial>,
-        east: Handle<StandardMaterial>,
-        top: Handle<StandardMaterial>,
-        south: Handle<StandardMaterial>,
-        visibility: VoxelVisibility,
-    }
 }
 
 impl Default for MaterialRepository {
@@ -47,25 +23,16 @@ impl Default for MaterialRepository {
 }
 
 impl MaterialRepository {
-    pub fn register_material(&mut self, material: MaterialType) -> usize {
-        let (handles, visibility) = match material {
-            MaterialType::None => {
-                (std::array::from_fn(|_| self.default_material.clone()), VoxelVisibility::Empty)
-            },
-            MaterialType::Uniform { material, visibility } => {
-                (std::array::from_fn(|_| material.clone()), visibility)
-            },
-            MaterialType::Column { top, side, bottom, visibility } => {
-                ([side.clone(), bottom.clone(), side.clone(), side.clone(), top.clone(), side.clone()], visibility)
-            },
-            MaterialType::PerFace { west, bottom, north, east, top, south, visibility } => {
-                ([west.clone(), bottom.clone(), north.clone(), east.clone(), top.clone(), south.clone()], visibility)
-            },
-        };
-        self.materials.push(handles);
-        self.visibilities.push(visibility);
-        self.materials.len() - 1
+    pub fn set_material(&mut self, id: u16, handles: [Handle<StandardMaterial>; 6], visibility: VoxelVisibility) {
+        let id = id as usize;
+        if id >= self.materials.len() {
+            self.materials.resize(id + 1, std::array::from_fn(|_| self.default_material.clone()));
+            self.visibilities.resize(id + 1, VoxelVisibility::Empty);
+        }
+        self.materials[id] = handles;
+        self.visibilities[id] = visibility;
     }
+
     pub fn get_material_handle(&self, material_index: usize, face_index: usize) -> Handle<StandardMaterial> {
         if material_index >= self.materials.len() {
             self.default_material.clone()
@@ -194,170 +161,45 @@ pub fn material_setup(
 
     material_repo.default_material = default_material.clone();
 
-    // Id 0: Empty voxel
-    material_repo.register_material(MaterialType::None);
-    // Id 1: Debug voxel (uniform material)
-    material_repo.register_material(MaterialType::Uniform { material: default_material, visibility: VoxelVisibility::Opaque });
-    // Id 2: Dirt voxel (uniform material)
-    let dirt_material = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load_with_settings("textures/dirt.png", loading_seettings)),
-        perceptual_roughness: 0.9,
-        reflectance: 0.05,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: dirt_material.clone(), visibility: VoxelVisibility::Opaque });
-    // Id 3: Grass voxel (column material)
-    let grass_material_top = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load_with_settings("textures/grass_top.png", loading_seettings)),
-        perceptual_roughness: 0.9,
-        reflectance: 0.2,
-        ..default()
-    });
-    let grass_material_side = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load_with_settings("textures/grass_side.png", loading_seettings)),
-        perceptual_roughness: 0.9,
-        reflectance: 0.1,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Column {
-        top: grass_material_top,
-        side: grass_material_side,
-        bottom: dirt_material,
-        visibility: VoxelVisibility::Opaque,
-    });
+    let definitions = voxel::get_voxel_definitions();
 
-    // Id 4: Stone
-    let stone_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.5, 0.5, 0.5),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: stone_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 5: Water
-    let water_material = materials.add(StandardMaterial {
-        base_color: Color::srgba(0.0, 0.3, 0.8, 0.5),
-        perceptual_roughness: 0.1,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: water_material, visibility: VoxelVisibility::Translucent });
-
-    // Id 6: Sand
-    let sand_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.9, 0.85, 0.6),
-        perceptual_roughness: 0.9,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: sand_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 7: Wood
-    let wood_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.4, 0.25, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: wood_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 8: Leaves
-    let leaves_material = materials.add(StandardMaterial {
-        base_color: Color::srgba(0.1, 0.6, 0.1, 0.8),
-        perceptual_roughness: 0.8,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: leaves_material, visibility: VoxelVisibility::Translucent });
-
-    // Id 9: Snow
-    let snow_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.95, 0.95, 1.0),
-        perceptual_roughness: 0.5,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: snow_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 10: Gravel
-    let gravel_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.4, 0.4, 0.4),
-        perceptual_roughness: 0.9,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: gravel_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 11: Mud
-    let mud_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.3, 0.2, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: mud_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 12: Clay
-    let clay_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.7, 0.4, 0.3),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: clay_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 13: Cactus
-    let cactus_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.1, 0.5, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: cactus_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 14: Flower Red
-    let flower_red_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.9, 0.1, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: flower_red_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 15: Flower Yellow
-    let flower_yellow_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.9, 0.9, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: flower_yellow_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 16: Pine Log
-    let pine_log_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.3, 0.2, 0.1),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: pine_log_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 17: Pine Leaves
-    let pine_leaves_material = materials.add(StandardMaterial {
-        base_color: Color::srgba(0.05, 0.3, 0.05, 0.8),
-        perceptual_roughness: 0.8,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: pine_leaves_material, visibility: VoxelVisibility::Translucent });
-
-    // Id 18: Birch Log
-    let birch_log_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.9, 0.9, 0.8),
-        perceptual_roughness: 0.8,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: birch_log_material, visibility: VoxelVisibility::Opaque });
-
-    // Id 19: Birch Leaves
-    let birch_leaves_material = materials.add(StandardMaterial {
-        base_color: Color::srgba(0.4, 0.8, 0.4, 0.8),
-        perceptual_roughness: 0.8,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    });
-    material_repo.register_material(MaterialType::Uniform { material: birch_leaves_material, visibility: VoxelVisibility::Translucent });
+    for (id, visibility, material_def) in definitions {
+        let handles = match material_def {
+            VoxelMaterial::None => {
+                std::array::from_fn(|_| material_repo.default_material.clone())
+            },
+            VoxelMaterial::Uniform(def) => {
+                let material = create_material(&mut materials, &asset_server, def, loading_seettings);
+                std::array::from_fn(|_| material.clone())
+            },
+            VoxelMaterial::Column { top, side, bottom } => {
+                let top_mat = create_material(&mut materials, &asset_server, top, loading_seettings);
+                let side_mat = create_material(&mut materials, &asset_server, side, loading_seettings);
+                let bottom_mat = create_material(&mut materials, &asset_server, bottom, loading_seettings);
+                [side_mat.clone(), bottom_mat, side_mat.clone(), side_mat.clone(), top_mat, side_mat]
+            },
+        };
+        material_repo.set_material(id, handles, visibility);
+    }
 }
+
+fn create_material(
+    materials: &mut Assets<StandardMaterial>,
+    asset_server: &AssetServer,
+    def: voxel::MaterialDef,
+    loading_settings: impl Fn(&mut ImageLoaderSettings) + Copy + Send + Sync + 'static,
+) -> Handle<StandardMaterial> {
+    let texture = def.texture.map(|path| asset_server.load_with_settings(path, loading_settings));
+    materials.add(StandardMaterial {
+        base_color: def.base_color,
+        base_color_texture: texture,
+        perceptual_roughness: def.perceptual_roughness,
+        reflectance: def.reflectance,
+        alpha_mode: def.alpha_mode,
+        ..default()
+    })
+}
+
 
 #[derive(Component)]
 pub struct NeedMeshUpdate;

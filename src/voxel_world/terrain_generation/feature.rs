@@ -16,7 +16,7 @@ impl Feature for TreeFeature {
         // Trunk
         for i in 0..height {
             let pos = origin + IVec3::new(0, i as i32, 0);
-            changes.push((pos, Voxel::WOOD));
+            changes.push((pos, Voxel::OAK_LOG));
         }
         
         // Leaves
@@ -31,7 +31,7 @@ impl Feature for TreeFeature {
                     }
                     
                     let leaf_pos = origin + IVec3::new(x, y as i32, z);
-                    changes.push((leaf_pos, Voxel::LEAVES));
+                    changes.push((leaf_pos, Voxel::OAK_LEAVES));
                 }
             }
         }
