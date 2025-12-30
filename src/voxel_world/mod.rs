@@ -8,7 +8,7 @@ pub mod player;
 pub mod terrain_generation;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};
-use bevy_flycam::FlyCam;
+use bevy_flycam::{FlyCam, MovementSettings};
 use chunking::*;
 use chunk_map::*;
 use player::*;
@@ -20,12 +20,15 @@ impl Plugin for VoxelWorldPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(TerrainGenerationPlugin)
+            .add_plugins(MeshingPlugin)
             .insert_resource(RenderDistanceParams::default())
             .insert_resource(ChunkEntities::default())
             .insert_resource(ChunkMap::default())
-            .insert_resource(MaterialRepository::default())
+            .insert_resource(MovementSettings {
+                sensitivity: 0.00015,
+                speed: 32.0
+            })
             .add_systems(Startup, (
-                material_setup,
                 setup_world,
             ))
             .add_systems(PreUpdate, (
@@ -33,9 +36,6 @@ impl Plugin for VoxelWorldPlugin {
             ))
             .add_systems(Update, (
                 update_chunk_entities.run_if(resource_changed::<RenderDistanceParams>),
-            ))
-            .add_systems(PostUpdate, (
-                terrain_mesh_update,
             ))
             ;
     }
@@ -46,7 +46,7 @@ fn setup_world(
 ) {
     let cascade_shadow_config = CascadeShadowConfigBuilder {
         first_cascade_far_bound: 4.0,
-        maximum_distance: 300.0,
+        maximum_distance: 500.0,
         num_cascades: 2,
         ..default()
     }.build();
