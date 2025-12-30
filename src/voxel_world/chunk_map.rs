@@ -101,6 +101,18 @@ impl ChunkMap {
         self.chunks.get_mut(position)
     }
 
+    pub fn set_bulk(&mut self, changes: Vec<(IVec3, Voxel)>) {
+        for (world_pos, voxel) in changes {
+            if let Some(target_voxel) = self.get_at_mut(world_pos) {
+                // Only overwrite if the target is empty, water, or snow (soft blocks)
+                // Or if we want strict replacement. For features like trees, we usually don't want to replace stone/dirt.
+                if target_voxel.id == 0 || target_voxel.id == 5 || target_voxel.id == 9 {
+                    *target_voxel = voxel;
+                }
+            }
+        }
+    }
+
     pub fn get_at(&self, world_pos: IVec3) -> Option<Voxel> {
         let chunk_pos = world_pos.div_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32));
         let chunk = self.chunks.get(&chunk_pos)?;
