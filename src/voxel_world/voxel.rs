@@ -128,7 +128,7 @@ define_voxels! {
     },
     STONE = 4 => {
         visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.5, 0.5, 0.5)).with_roughness(0.8))
+        material: VoxelMaterial::Uniform(MaterialDef::texture("textures/stone.png"))
     },
     WATER = 5 => {
         visibility: VoxelVisibility::Translucent,

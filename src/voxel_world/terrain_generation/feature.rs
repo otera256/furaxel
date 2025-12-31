@@ -5,9 +5,9 @@ pub trait Feature: Send + Sync {
     fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)>;
 }
 
-pub struct TreeFeature;
+pub struct OakTreeFeature;
 
-impl Feature for TreeFeature {
+impl Feature for OakTreeFeature {
     fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
         let mut changes = Vec::new();
         let h_hash = hash(origin.x, origin.z, seed);
@@ -139,6 +139,73 @@ impl Feature for BirchTreeFeature {
                 }
             }
         }
+        changes
+    }
+}
+
+pub struct BigOakTreeFeature;
+
+impl Feature for BigOakTreeFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut logs = Vec::new();
+        let mut leaves = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 10 + (h_hash % 5); // 10 to 14
+        
+        // Trunk
+        for i in 0..height {
+            let pos = origin + IVec3::new(0, i as i32, 0);
+            logs.push((pos, Voxel::OAK_LOG));
+        }
+
+        let mut leaf_centers = Vec::new();
+        leaf_centers.push((origin + IVec3::new(0, height as i32, 0), 3)); // Top cluster
+
+        // Branches
+        let num_branches = 4 + ((h_hash >> 3) % 3); // 4 to 6 branches
+        for i in 0..num_branches {
+            let branch_seed = h_hash.wrapping_add(i * 1923);
+            let start_h = (height / 3) + (branch_seed % (height / 2));
+            let start_pos = origin + IVec3::new(0, start_h as i32, 0);
+
+            // Direction
+            let angle = (i as f32 / num_branches as f32) * 6.283 + ((branch_seed % 10) as f32 * 0.1);
+            let dir_x = angle.cos();
+            let dir_z = angle.sin();
+            
+            let length = 3 + ((branch_seed >> 4) % 3); // 3 to 5
+
+            for l in 1..=length {
+                let offset_x = (dir_x * l as f32).round() as i32;
+                let offset_z = (dir_z * l as f32).round() as i32;
+                let offset_y = (l as i32 + 1) / 2; // Rise slowly
+
+                let branch_pos = start_pos + IVec3::new(offset_x, offset_y, offset_z);
+                logs.push((branch_pos, Voxel::OAK_LOG));
+                
+                if l == length {
+                    leaf_centers.push((branch_pos, 2));
+                }
+            }
+        }
+
+        // Generate Leaves
+        for (center, radius) in leaf_centers {
+            for x in -radius..=radius {
+                for y in -radius..=radius {
+                    for z in -radius..=radius {
+                        if x*x + y*y + z*z <= radius*radius + 1 {
+                            let pos = center + IVec3::new(x, y, z);
+                            leaves.push((pos, Voxel::OAK_LEAVES));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Combine (Leaves first so logs overwrite them if duplicates exist)
+        let mut changes = leaves;
+        changes.extend(logs);
         changes
     }
 }
