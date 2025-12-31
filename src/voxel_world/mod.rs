@@ -1,26 +1,27 @@
 pub mod voxel;
-pub mod meshing;
 pub mod chunk;
 pub mod terrain_chunk;
 pub mod chunk_map;
 pub mod chunking;
 pub mod player;
 pub mod terrain_generation;
+pub mod rendering;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};
 use bevy_flycam::{FlyCam, MovementSettings};
 use chunking::*;
 use chunk_map::*;
 use player::*;
-use meshing::*;
 use terrain_generation::*;
+
+use crate::voxel_world::rendering::VoxelRenderingPlugin;
 pub struct VoxelWorldPlugin;
 
 impl Plugin for VoxelWorldPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(TerrainGenerationPlugin)
-            .add_plugins(MeshingPlugin)
+            .add_plugins(VoxelRenderingPlugin)
             .insert_resource(RenderDistanceParams::default())
             .insert_resource(ChunkEntities::default())
             .insert_resource(ChunkMap::default())

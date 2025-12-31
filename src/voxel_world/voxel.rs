@@ -136,7 +136,7 @@ define_voxels! {
     },
     SAND = 6 => {
         visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.9, 0.85, 0.6)))
+        material: VoxelMaterial::Uniform(MaterialDef::texture("textures/sand.png"))
     },
     OAK_LOG = 7 => {
         visibility: VoxelVisibility::Opaque,

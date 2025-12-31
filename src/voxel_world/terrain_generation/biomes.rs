@@ -1,5 +1,4 @@
 use bevy::platform::collections::HashMap;
-use noise::{NoiseFn, Perlin};
 use std::sync::Arc;
 use crate::voxel_world::{terrain_generation::feature::BigOakTreeFeature, voxel::Voxel};
 use super::feature::{Feature, OakTreeFeature, CactusFeature, FlowerFeature, PineTreeFeature, BirchTreeFeature, IceSpikeFeature, BambooFeature, AcaciaTreeFeature, JungleTreeFeature, MegaJungleTreeFeature, JungleBushFeature};
@@ -16,13 +15,10 @@ pub struct Biome {
 pub struct BiomeRegistry {
     // Using a simple grid or logic for now, but storing biomes by ID
     pub biomes: HashMap<u8, Biome>,
-    temperature_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
-    humidity_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
-    rarity_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
 }
 
 impl BiomeRegistry {
-    pub fn new(seed: u32) -> Self {
+    pub fn new(_seed: u32) -> Self {
         let mut biomes = HashMap::new();
 
         // Plains
@@ -172,7 +168,7 @@ impl BiomeRegistry {
             name: "Ice Spikes",
             surface_block: Voxel::SNOW,
             sub_surface_block: Voxel::PACKED_ICE,
-            features: vec![(Arc::new(IceSpikeFeature), 0.02)],
+            features: vec![(Arc::new(IceSpikeFeature), 0.01)],
         });
 
         // Red Desert
@@ -199,9 +195,6 @@ impl BiomeRegistry {
 
         Self {
             biomes,
-            temperature_noise: Box::new(Perlin::new(seed + 100)),
-            humidity_noise: Box::new(Perlin::new(seed + 200)),
-            rarity_noise: Box::new(Perlin::new(seed + 300)),
         }
     }
 
@@ -209,16 +202,8 @@ impl BiomeRegistry {
         self.biomes.get(&id).unwrap_or_else(|| self.biomes.get(&0).unwrap())
     }
 
-    pub fn get_biome(&self, x: f64, z: f64, altitude: i32) -> &Biome {
-        let temp = self.temperature_noise.get([x * 0.0004, z * 0.0004])
-            - (altitude - 20) as f64 * 0.01;
-
-        let humidity = self.humidity_noise.get([x * 0.0004, z * 0.0004])
-            + temp * 0.2;
-
-        let rarity = self.rarity_noise.get([x * 0.002, z * 0.002]);
-
-        let id = if altitude >= -4 && altitude < 2 && temp > -0.2 {
+    pub fn resolve_biome(&self, temp: f64, humidity: f64, rarity: f64, altitude: i32) -> &Biome {
+        let id = if altitude >= -3 && altitude < 0 && temp > -0.2 {
                 11 // Beach
         } else if altitude < 0 {
             if temp < -0.5 {

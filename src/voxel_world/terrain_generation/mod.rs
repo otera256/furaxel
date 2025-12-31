@@ -9,7 +9,7 @@ use bevy::{
 use itertools::{Itertools, iproduct};
 use std::sync::Arc;
 use crate::voxel_world::{
-    chunk_map::ChunkMap, chunking::{ChunkEntities, RenderDistanceParams, TerrainChunk}, meshing::{MeshQueued, NeedMeshUpdate}, terrain_generation::storage::TerrainGenerationStorage
+    chunk_map::ChunkMap, chunking::{ChunkEntities, RenderDistanceParams, TerrainChunk}, rendering::meshing::{MeshQueued, NeedMeshUpdate}, terrain_generation::storage::TerrainGenerationStorage
 };
 use self::biomes::BiomeRegistry;
 
@@ -216,11 +216,12 @@ fn queue_feature_tasks(
         if all_neighbors_ready {
             let config = config.clone();
             let altitude_map = storage.altitude_maps.get(&chunk_xz).unwrap().clone();
+            let biome_map = storage.biome_maps.get(&chunk_xz).unwrap().clone();
 
             let task = thread_pool.spawn(async move {
                 let mut command_queue = CommandQueue::default();
                 
-                let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &config);
+                let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &biome_map, &config);
 
                 command_queue.push(move |world: &mut World| {
                     world.resource_mut::<ChunkMap>().set_bulk(changes);
