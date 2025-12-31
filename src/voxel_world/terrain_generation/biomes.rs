@@ -2,7 +2,7 @@ use bevy::platform::collections::HashMap;
 use noise::{NoiseFn, Perlin};
 use std::sync::Arc;
 use crate::voxel_world::{terrain_generation::feature::BigOakTreeFeature, voxel::Voxel};
-use super::feature::{Feature, OakTreeFeature, CactusFeature, FlowerFeature, PineTreeFeature, BirchTreeFeature};
+use super::feature::{Feature, OakTreeFeature, CactusFeature, FlowerFeature, PineTreeFeature, BirchTreeFeature, IceSpikeFeature, BambooFeature, AcaciaTreeFeature, JungleTreeFeature, MegaJungleTreeFeature, JungleBushFeature};
 
 pub struct Biome {
     pub id: u8,
@@ -10,8 +10,7 @@ pub struct Biome {
     pub name: &'static str,
     pub surface_block: Voxel,
     pub sub_surface_block: Voxel,
-    pub features: Vec<Arc<dyn Feature>>,
-    pub feature_probability: f32,
+    pub features: Vec<(Arc<dyn Feature>, f32)>,
 }
 
 pub struct BiomeRegistry {
@@ -19,6 +18,7 @@ pub struct BiomeRegistry {
     pub biomes: HashMap<u8, Biome>,
     temperature_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
     humidity_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
+    rarity_noise: Box<dyn NoiseFn<f64, 2> + Send + Sync>,
 }
 
 impl BiomeRegistry {
@@ -31,8 +31,7 @@ impl BiomeRegistry {
             name: "Plains",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(BigOakTreeFeature)],
-            feature_probability: 0.001,
+            features: vec![(Arc::new(BigOakTreeFeature), 0.0003)],
         });
 
         // Desert
@@ -41,8 +40,7 @@ impl BiomeRegistry {
             name: "Desert",
             surface_block: Voxel::SAND,
             sub_surface_block: Voxel::SAND,
-            features: vec![Arc::new(CactusFeature)],
-            feature_probability: 0.01,
+            features: vec![(Arc::new(CactusFeature), 0.01)],
         });
 
         // Mountains
@@ -52,7 +50,6 @@ impl BiomeRegistry {
             surface_block: Voxel::STONE,
             sub_surface_block: Voxel::STONE,
             features: vec![],
-            feature_probability: 0.0,
         });
 
         // Snow
@@ -61,8 +58,7 @@ impl BiomeRegistry {
             name: "Snow",
             surface_block: Voxel::SNOW,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(PineTreeFeature)],
-            feature_probability: 0.02,
+            features: vec![(Arc::new(PineTreeFeature), 0.02)],
         });
 
         // Ocean
@@ -73,7 +69,6 @@ impl BiomeRegistry {
             surface_block: Voxel::GRAVEL,
             sub_surface_block: Voxel::STONE,
             features: vec![],
-            feature_probability: 0.0,
         });
 
         // Oak Forest
@@ -82,8 +77,10 @@ impl BiomeRegistry {
             name: "Oak Forest",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(OakTreeFeature), Arc::new(FlowerFeature)],
-            feature_probability: 0.02,
+            features: vec![
+                (Arc::new(OakTreeFeature), 0.01),
+                (Arc::new(FlowerFeature), 0.01)
+            ],
         });
 
         // Birch Forest
@@ -92,8 +89,10 @@ impl BiomeRegistry {
             name: "Birch Forest",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(BirchTreeFeature), Arc::new(FlowerFeature)],
-            feature_probability: 0.02,
+            features: vec![
+                (Arc::new(BirchTreeFeature), 0.01),
+                (Arc::new(FlowerFeature), 0.01)
+            ],
         });
 
         // Flower Field
@@ -102,8 +101,7 @@ impl BiomeRegistry {
             name: "Flower Field",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(FlowerFeature)],
-            feature_probability: 0.1,
+            features: vec![(Arc::new(FlowerFeature), 0.1)],
         });
 
         // Snow Field
@@ -113,7 +111,6 @@ impl BiomeRegistry {
             surface_block: Voxel::SNOW,
             sub_surface_block: Voxel::SNOW,
             features: vec![],
-            feature_probability: 0.0,
         });
 
         // Savanna
@@ -122,8 +119,7 @@ impl BiomeRegistry {
             name: "Savanna",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(OakTreeFeature)],
-            feature_probability: 0.01,
+            features: vec![(Arc::new(AcaciaTreeFeature), 0.002)],
         });
 
         // Jungle
@@ -132,14 +128,80 @@ impl BiomeRegistry {
             name: "Jungle",
             surface_block: Voxel::GRASS,
             sub_surface_block: Voxel::DIRT,
-            features: vec![Arc::new(OakTreeFeature), Arc::new(BirchTreeFeature), Arc::new(FlowerFeature)],
-            feature_probability: 0.08,
+            features: vec![
+                (Arc::new(MegaJungleTreeFeature), 0.002),
+                (Arc::new(JungleTreeFeature), 0.02),
+                (Arc::new(JungleBushFeature), 0.05),
+                (Arc::new(FlowerFeature), 0.01)
+            ],
+        });
+
+        // Beach
+        biomes.insert(11, Biome {
+            id: 11,
+            name: "Beach",
+            surface_block: Voxel::SAND,
+            sub_surface_block: Voxel::SAND,
+            features: vec![],
+        });
+
+        // Cold Ocean
+        biomes.insert(12, Biome {
+            id: 12,
+            name: "Cold Ocean",
+            surface_block: Voxel::GRAVEL,
+            sub_surface_block: Voxel::STONE,
+            features: vec![],
+        });
+
+        // Sunflower Plains
+        biomes.insert(13, Biome {
+            id: 13,
+            name: "Sunflower Plains",
+            surface_block: Voxel::GRASS,
+            sub_surface_block: Voxel::DIRT,
+            features: vec![
+                (Arc::new(BigOakTreeFeature), 0.001),
+                (Arc::new(FlowerFeature), 0.2)
+            ],
+        });
+
+        // Ice Spikes
+        biomes.insert(14, Biome {
+            id: 14,
+            name: "Ice Spikes",
+            surface_block: Voxel::SNOW,
+            sub_surface_block: Voxel::PACKED_ICE,
+            features: vec![(Arc::new(IceSpikeFeature), 0.02)],
+        });
+
+        // Red Desert
+        biomes.insert(15, Biome {
+            id: 15,
+            name: "Red Desert",
+            surface_block: Voxel::RED_SAND,
+            sub_surface_block: Voxel::RED_SAND,
+            features: vec![(Arc::new(CactusFeature), 0.01)],
+        });
+
+        // Bamboo Jungle
+        biomes.insert(16, Biome {
+            id: 16,
+            name: "Bamboo Jungle",
+            surface_block: Voxel::GRASS,
+            sub_surface_block: Voxel::DIRT,
+            features: vec![
+                (Arc::new(BambooFeature), 0.1),
+                (Arc::new(JungleTreeFeature), 0.005),
+                (Arc::new(JungleBushFeature), 0.01)
+            ],
         });
 
         Self {
             biomes,
             temperature_noise: Box::new(Perlin::new(seed + 100)),
             humidity_noise: Box::new(Perlin::new(seed + 200)),
+            rarity_noise: Box::new(Perlin::new(seed + 300)),
         }
     }
 
@@ -148,39 +210,47 @@ impl BiomeRegistry {
     }
 
     pub fn get_biome(&self, x: f64, z: f64, altitude: i32) -> &Biome {
-        let temp = self.temperature_noise.get([x * 0.001, z * 0.001])
+        let temp = self.temperature_noise.get([x * 0.0004, z * 0.0004])
             - (altitude - 20) as f64 * 0.01;
 
-        let humidity = self.humidity_noise.get([x * 0.001, z * 0.001])
+        let humidity = self.humidity_noise.get([x * 0.0004, z * 0.0004])
             + temp * 0.2;
 
-        let id = if altitude < 0 {
-            4 // Ocean
+        let rarity = self.rarity_noise.get([x * 0.002, z * 0.002]);
+
+        let id = if altitude >= -4 && altitude < 2 && temp > -0.2 {
+                11 // Beach
+        } else if altitude < 0 {
+            if temp < -0.5 {
+                12 // Cold Ocean
+            } else {
+                4 // Ocean
+            }
         } else if temp < -0.4 {
             if humidity < 0.0 {
-                8 // Snow Field
+                if rarity > 0.6 { 14 } else { 8 } // Ice Spikes or Snow Field
             } else {
                 3 // Snow (Pine Forest)
             }
-        } else if temp < 0.5 {
+        } else if temp < 0.4 {
             if humidity < -0.7 {
                 2 // Mountains
-            } else if humidity < -0.2 {
-                0 // Plains
-            } else if humidity < 0.2 {
+            } else if humidity < -0.4 {
+                if rarity > 0.5 { 13 } else { 0 } // Sunflower Plains or Plains
+            } else if humidity < 0.0 {
                 6 // Birch Forest
-            } else if humidity < 0.5 {
-                7 // Flower Field
+            } else if humidity < 0.3 {
+                if rarity > 0.4 { 7 } else { 5 } // Flower Field or Oak Forest
             } else {
                 5 // Oak Forest
             }
         } else {
             if humidity < -0.2 {
-                1 // Desert
+                if rarity > 0.5 { 15 } else { 1 } // Red Desert or Desert
             } else if humidity < 0.3 {
                 9 // Savanna
             } else {
-                10 // Jungle
+                if rarity > 0.5 { 16 } else { 10 } // Bamboo Jungle or Jungle
             }
         };
 

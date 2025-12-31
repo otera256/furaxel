@@ -16,7 +16,7 @@ pub fn generate_altitude_map(
 ) -> (Vec<i32>, Vec<u8>) {
     // --- Noise Generation Logic ---
     let base_continent = Fbm::<Perlin>::new(seed)
-        .set_frequency(0.001)
+        .set_frequency(0.0006)
         .set_persistence(0.5)
         .set_lacunarity(2.2)
         .set_octaves(6);
@@ -81,7 +81,11 @@ pub fn generate_base_terrain(
                 } else if local_y == altitude {
                     biome.surface_block
                 } else if world_y < 0 {
-                    Voxel::WATER
+                    if biome.id == 12 && world_y == -1 {
+                        Voxel::ICE
+                    } else {
+                        Voxel::WATER
+                    }
                 } else {
                     Voxel::EMPTY
                 };
@@ -116,17 +120,16 @@ pub fn generate_features(
                 let biome = config.get_biome(world_x as f64, world_z as f64, altitude);
                 
                 if !biome.features.is_empty() {
-                    let prob_hash = feature::hash(world_x, world_z, seed);
-                    let prob = (prob_hash % 10000) as f32 / 10000.0;
-                    
-                    if prob < biome.feature_probability {
-                        let feature_idx = (prob_hash as usize) % biome.features.len();
-                        let feature = &biome.features[feature_idx];
+                    for (i, (feature, probability)) in biome.features.iter().enumerate() {
+                        let prob_hash = feature::hash(world_x, world_z, seed.wrapping_add(i as u32));
+                        let prob = (prob_hash % 10000) as f32 / 10000.0;
                         
-                        // Place feature at (world_x, altitude + 1, world_z)
-                        let origin = IVec3::new(world_x, altitude + 1, world_z);
-                        let feature_changes = feature.place(origin, seed);
-                        changes.extend(feature_changes);
+                        if prob < *probability {
+                            // Place feature at (world_x, altitude + 1, world_z)
+                            let origin = IVec3::new(world_x, altitude + 1, world_z);
+                            let feature_changes = feature.place(origin, seed);
+                            changes.extend(feature_changes);
+                        }
                     }
                 }
             }

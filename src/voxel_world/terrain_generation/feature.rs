@@ -209,3 +209,200 @@ impl Feature for BigOakTreeFeature {
         changes
     }
 }
+
+pub struct IceSpikeFeature;
+
+impl Feature for IceSpikeFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 10 + (h_hash % 10); // 10 to 19
+        
+        for i in 0..height {
+            let radius = if i < height / 2 { 2 } else if i < height - 2 { 1 } else { 0 };
+            for x in -(radius as i32)..=(radius as i32) {
+                for z in -(radius as i32)..=(radius as i32) {
+                     if x.abs() + z.abs() > radius as i32 + 1 { continue; }
+                     let pos = origin + IVec3::new(x, i as i32, z);
+                     changes.push((pos, Voxel::PACKED_ICE));
+                }
+            }
+        }
+        changes
+    }
+}
+
+pub struct BambooFeature;
+
+impl Feature for BambooFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 8 + (h_hash % 8); // 8 to 15
+        
+        for i in 0..height {
+            let pos = origin + IVec3::new(0, i as i32, 0);
+            changes.push((pos, Voxel::BAMBOO));
+        }
+        // Leaves at top
+        let leaves_pos = origin + IVec3::new(0, height as i32, 0);
+        changes.push((leaves_pos, Voxel::JUNGLE_LEAVES)); 
+        
+        changes
+    }
+}
+
+pub struct AcaciaTreeFeature;
+
+impl Feature for AcaciaTreeFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 5 + (h_hash % 3); // 5 to 7
+        
+        // Trunk
+        for i in 0..height {
+            changes.push((origin + IVec3::new(0, i as i32, 0), Voxel::ACACIA_LOG));
+        }
+        
+        // Branches
+        let branch_dir_1 = match h_hash % 4 {
+            0 => IVec3::new(1, 1, 0),
+            1 => IVec3::new(-1, 1, 0),
+            2 => IVec3::new(0, 1, 1),
+            _ => IVec3::new(0, 1, -1),
+        };
+        let branch_dir_2 = match (h_hash >> 2) % 4 {
+            0 => IVec3::new(1, 1, 0),
+            1 => IVec3::new(-1, 1, 0),
+            2 => IVec3::new(0, 1, 1),
+            _ => IVec3::new(0, 1, -1),
+        };
+
+        let mut leaf_centers = Vec::new();
+        
+        // Branch 1
+        let mut pos = origin + IVec3::new(0, height as i32 - 1, 0);
+        for _ in 0..3 {
+            pos += branch_dir_1;
+            changes.push((pos, Voxel::ACACIA_LOG));
+        }
+        leaf_centers.push(pos);
+
+        // Branch 2
+        if branch_dir_1 != branch_dir_2 {
+             let mut pos2 = origin + IVec3::new(0, height as i32 - 2, 0);
+             for _ in 0..2 {
+                 pos2 += branch_dir_2;
+                 changes.push((pos2, Voxel::ACACIA_LOG));
+             }
+             leaf_centers.push(pos2);
+        }
+        
+        // Leaves (Flat canopy)
+        for center in leaf_centers {
+            for x in -2i32..=2 {
+                for z in -2i32..=2 {
+                    if x.abs() <= 1 || z.abs() <= 1 { 
+                         changes.push((center + IVec3::new(x, 0, z), Voxel::ACACIA_LEAVES));
+                    }
+                }
+            }
+             for x in -1i32..=1 {
+                for z in -1i32..=1 {
+                     changes.push((center + IVec3::new(x, 1, z), Voxel::ACACIA_LEAVES));
+                }
+            }
+        }
+
+        changes
+    }
+}
+
+pub struct JungleTreeFeature;
+
+impl Feature for JungleTreeFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 4 + (h_hash % 8); // 4 to 11
+        
+        // Trunk
+        for i in 0..height {
+            let pos = origin + IVec3::new(0, i as i32, 0);
+            changes.push((pos, Voxel::JUNGLE_LOG));
+        }
+        
+        // Leaves
+        let leaves_start = height - 3;
+        for y in leaves_start..(height + 2) {
+            let range = if y >= height { 1 } else { 2 };
+            for x in -(range as i32)..=(range as i32) {
+                for z in -(range as i32)..=(range as i32) {
+                    if x.abs() == range as i32 && z.abs() == range as i32 {
+                        continue;
+                    }
+                    let leaf_pos = origin + IVec3::new(x, y as i32, z);
+                    changes.push((leaf_pos, Voxel::JUNGLE_LEAVES));
+                }
+            }
+        }
+        changes
+    }
+}
+
+pub struct MegaJungleTreeFeature;
+
+impl Feature for MegaJungleTreeFeature {
+    fn place(&self, origin: IVec3, seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        let h_hash = hash(origin.x, origin.z, seed);
+        let height = 20 + (h_hash % 10); // 20 to 29
+        
+        // 2x2 Trunk
+        for i in 0..height {
+            changes.push((origin + IVec3::new(0, i as i32, 0), Voxel::JUNGLE_LOG));
+            changes.push((origin + IVec3::new(1, i as i32, 0), Voxel::JUNGLE_LOG));
+            changes.push((origin + IVec3::new(0, i as i32, 1), Voxel::JUNGLE_LOG));
+            changes.push((origin + IVec3::new(1, i as i32, 1), Voxel::JUNGLE_LOG));
+        }
+        
+        // Leaves (Large canopy)
+        let leaves_start = height - 5;
+        for y in leaves_start..(height + 2) {
+            let range = if y >= height { 2 } else { 4 };
+            for x in -(range as i32)..=(range as i32 + 1) {
+                for z in -(range as i32)..=(range as i32 + 1) {
+                    // Rounding
+                    let dist = ((x as f32 - 0.5).powi(2) + (z as f32 - 0.5).powi(2)).sqrt();
+                    if dist > range as f32 + 0.5 { continue; }
+
+                    let leaf_pos = origin + IVec3::new(x, y as i32, z);
+                    changes.push((leaf_pos, Voxel::JUNGLE_LEAVES));
+                }
+            }
+        }
+        changes
+    }
+}
+
+pub struct JungleBushFeature;
+
+impl Feature for JungleBushFeature {
+    fn place(&self, origin: IVec3, _seed: u32) -> Vec<(IVec3, Voxel)> {
+        let mut changes = Vec::new();
+        changes.push((origin, Voxel::JUNGLE_LOG));
+        
+        for x in -1i32..=1 {
+            for z in -1i32..=1 {
+                for y in 0..=1 {
+                    if x == 0 && z == 0 && y == 0 { continue; }
+                    if x.abs() + z.abs() + y > 2 { continue; }
+                    changes.push((origin + IVec3::new(x, y, z), Voxel::JUNGLE_LEAVES));
+                }
+            }
+        }
+        changes
+    }
+}
+

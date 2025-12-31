@@ -189,6 +189,38 @@ define_voxels! {
     BIRCH_LEAVES = 19 => {
         visibility: VoxelVisibility::Translucent,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.4, 0.8, 0.4, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    ICE = 20 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.6, 0.8, 1.0, 0.8)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
+    },
+    RED_SAND = 21 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.8, 0.4, 0.1)))
+    },
+    PACKED_ICE = 22 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.7, 0.8, 1.0)).with_roughness(0.2))
+    },
+    BAMBOO = 23 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.7, 0.2)).with_roughness(0.5))
+    },
+    ACACIA_LOG = 24 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.45, 0.4, 0.35)).with_roughness(0.8))
+    },
+    ACACIA_LEAVES = 25 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.3, 0.5, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    JUNGLE_LOG = 26 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.35, 0.2, 0.05)).with_roughness(0.8))
+    },
+    JUNGLE_LEAVES = 27 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.1, 0.7, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
     }
 }
 
