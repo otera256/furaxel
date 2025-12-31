@@ -60,6 +60,8 @@ pub enum VoxelMaterial {
         side: MaterialDef,
         bottom: MaterialDef,
     },
+    Cross(MaterialDef),
+    Water(MaterialDef),
 }
 
 macro_rules! define_voxels {
@@ -132,7 +134,7 @@ define_voxels! {
     },
     WATER = 5 => {
         visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.0, 0.3, 0.8, 0.5)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
+        material: VoxelMaterial::Water(MaterialDef::color(Color::srgba(0.0, 0.3, 0.8, 0.5)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
     },
     SAND = 6 => {
         visibility: VoxelVisibility::Opaque,
@@ -167,12 +169,12 @@ define_voxels! {
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.1, 0.5, 0.1)).with_roughness(0.8))
     },
     FLOWER_RED = 14 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.9, 0.1, 0.1)).with_roughness(0.8))
+        visibility: VoxelVisibility::Empty,
+        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_red.png"))
     },
     FLOWER_YELLOW = 15 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.9, 0.9, 0.1)).with_roughness(0.8))
+        visibility: VoxelVisibility::Empty,
+        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_yellow.png"))
     },
     PINE_LOG = 16 => {
         visibility: VoxelVisibility::Opaque,

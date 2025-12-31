@@ -46,9 +46,10 @@ fn setup_world(
     mut commands: Commands,
 ) {
     let cascade_shadow_config = CascadeShadowConfigBuilder {
-        first_cascade_far_bound: 4.0,
+        first_cascade_far_bound: 32.0,
+        minimum_distance: 0.1,
         maximum_distance: 500.0,
-        num_cascades: 2,
+        num_cascades: 3,
         ..default()
     }.build();
     // Player Camera
