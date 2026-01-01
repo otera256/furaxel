@@ -1,13 +1,38 @@
-use bevy::{asset::RenderAssetUsages, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, mesh::{Indices, PrimitiveTopology}, platform::collections::HashMap, prelude::*};
+use bevy::{asset::RenderAssetUsages, ecs::relationship::RelatedSpawnerCommands, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, light::NotShadowCaster, mesh::{Indices, PrimitiveTopology}, platform::collections::HashMap, prelude::*};
 use block_mesh::{Axis, GreedyQuadsBuffer, MergeVoxel, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, VoxelVisibility, greedy_quads, ndshape::Shape};
 use itertools::Itertools;
 use crate::voxel_world::{chunk::Chunk, rendering::water::WaterExtension, voxel::{self, VOXEL_SIZE, VoxelMaterial}};
 use super::water::WaterMaterial;
 
+#[derive(Component)]
+pub struct TerrainMesh;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelMaterialHandle {
     Standard(Handle<StandardMaterial>),
     Water(Handle<WaterMaterial>),
+}
+
+impl VoxelMaterialHandle {
+    pub fn spawn(&self, parent: &mut RelatedSpawnerCommands<'_, ChildOf>, mesh: Handle<Mesh>) {
+        match self {
+            VoxelMaterialHandle::Standard(handle) => {
+                parent.spawn((
+                    Mesh3d(mesh),
+                    MeshMaterial3d(handle.clone()),
+                    TerrainMesh,
+                ));
+            },
+            VoxelMaterialHandle::Water(handle) => {
+                parent.spawn((
+                    Mesh3d(mesh),
+                    MeshMaterial3d(handle.clone()),
+                    TerrainMesh,
+                    NotShadowCaster,
+                ));
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +59,56 @@ impl Default for MaterialRepository {
             visibilities: Vec::new(),
             voxel_kinds: Vec::new(),
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct MeshingVoxel {
+    id: u16,
+    visibility: VoxelVisibility,
+}
+
+impl MergeVoxel for MeshingVoxel {
+    type MergeValue = u16;
+    fn merge_value(&self) -> Self::MergeValue {
+        self.id
+    }
+}
+
+impl block_mesh::Voxel for MeshingVoxel {
+    fn get_visibility(&self) -> VoxelVisibility {
+        self.visibility
+    }
+}
+
+struct MeshBuilder{
+    quads: Vec<(OrientedBlockFace, UnorientedQuad)>,
+}
+
+impl MeshBuilder {
+    fn new(quads: Vec<(OrientedBlockFace, UnorientedQuad)>) -> Self {
+        Self { quads }
+    }
+    fn get_mesh(&self) -> Mesh {
+        let num_indices = self.quads.len() * 6;
+        let num_vertices = self.quads.len() * 4;
+        let mut indices = Vec::with_capacity(num_indices);
+        let mut positions = Vec::with_capacity(num_vertices);
+        let mut normals = Vec::with_capacity(num_vertices);
+        let mut uvs = Vec::with_capacity(num_vertices);
+
+        for (face, quad) in self.quads.iter() {
+            indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
+            positions.extend_from_slice(&face.quad_mesh_positions(quad, VOXEL_SIZE));
+            normals.extend_from_slice(&face.quad_mesh_normals());
+            uvs.extend_from_slice(&face.tex_coords(Axis::X, true, quad));
+        }
+
+        Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_indices(Indices::U32(indices))
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
     }
 }
 
@@ -75,29 +150,6 @@ impl MaterialRepository {
     }
 
     pub fn create_mesh<S: Shape<3, Coord = u32>>(&self, chunk: Chunk<S>) -> Vec<(VoxelMaterialHandle, Mesh)> {
-        let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
-
-        let mut buffer = GreedyQuadsBuffer::new(chunk.voxels.len());
-        
-        #[derive(Clone, Copy, PartialEq, Eq)]
-        struct MeshingVoxel {
-            id: u16,
-            visibility: VoxelVisibility,
-        }
-
-        impl MergeVoxel for MeshingVoxel {
-            type MergeValue = u16;
-            fn merge_value(&self) -> Self::MergeValue {
-                self.id
-            }
-        }
-
-        impl block_mesh::Voxel for MeshingVoxel {
-            fn get_visibility(&self) -> VoxelVisibility {
-                self.visibility
-            }
-        }
-
         let mut meshing_voxels = Vec::with_capacity(chunk.voxels.len());
         let mut cross_voxels = Vec::new();
 
@@ -120,12 +172,20 @@ impl MaterialRepository {
             }
         }
 
+        let mut meshes = self.generate_greedy_mesh(&chunk, &meshing_voxels);
+        meshes.extend(self.generate_cross_mesh(&chunk, &cross_voxels));
+        meshes
+    }
+
+    fn generate_greedy_mesh<S: Shape<3, Coord = u32>>(&self, chunk: &Chunk<S>, meshing_voxels: &[MeshingVoxel]) -> Vec<(VoxelMaterialHandle, Mesh)> {
+        let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
+        let mut buffer = GreedyQuadsBuffer::new(chunk.voxels.len());
         let dims = chunk.shape.as_array();
         let min = [0, 0, 0];
         let max = [dims[0] - 1, dims[1] - 1, dims[2] - 1];
 
         greedy_quads(
-            &meshing_voxels,
+            meshing_voxels,
             &chunk.shape,
             min,
             max,
@@ -133,60 +193,45 @@ impl MaterialRepository {
             &mut buffer,
         );
 
-        struct MeshBuilder{
-            quads: Vec<(OrientedBlockFace, UnorientedQuad)>,
-        }
-        impl MeshBuilder {
-            fn mew(quads: Vec<(OrientedBlockFace, UnorientedQuad)>) -> Self {
-                Self { quads }
-            }
-            fn get_mesh(&self) -> Mesh {
-                let num_indices = self.quads.len() * 6;
-                let num_vertices = self.quads.len() * 4;
-                let mut indices = Vec::with_capacity(num_indices);
-                let mut positions = Vec::with_capacity(num_vertices);
-                let mut normals = Vec::with_capacity(num_vertices);
-                let mut uvs = Vec::with_capacity(num_vertices);
-
-                for (face, quad) in self.quads.iter() {
-                    indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
-                    positions.extend_from_slice(&face.quad_mesh_positions(quad, VOXEL_SIZE));
-                    normals.extend_from_slice(&face.quad_mesh_normals());
-                    uvs.extend_from_slice(&face.tex_coords(Axis::X, true, quad));
-                }
-
-                Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
-                    .with_inserted_indices(Indices::U32(indices))
-                    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-                    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-                    .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-            }
-        }
-
-        let mut meshes: Vec<(VoxelMaterialHandle, Mesh)> = buffer
-            .quads
-            .groups
-            .into_iter()
+        buffer.quads.groups.into_iter()
             .zip(faces.into_iter().enumerate())
             .flat_map(|(quads, (face_i, face))| {
                 let chunk = &chunk;
-                quads
-                    .into_iter()
-                    .map(move |quad| {
-                        let local_pos = quad.minimum;
-                        let voxel = chunk.get_at(UVec3 { x: local_pos[0], y: local_pos[1], z: local_pos[2] });
-                        let handle = self.get_material_handle(voxel.id as usize, face_i);
-                        (handle, (face, quad))
-                })})
+                quads.into_iter().map(move |quad| {
+                    let local_pos = quad.minimum;
+                    let voxel = chunk.get_at(UVec3 { x: local_pos[0], y: local_pos[1], z: local_pos[2] });
+                    let handle = self.get_material_handle(voxel.id as usize, face_i);
+                    (handle, (face, quad))
+                })
+            })
             .into_group_map()
             .into_iter()
-            .map(|(handle, quads)| (handle, MeshBuilder::mew(quads).get_mesh()))
-            .collect();
+            .map(|(handle, quads)| (handle, MeshBuilder::new(quads).get_mesh()))
+            .collect()
+    }
 
-        // Cross Meshing
+    fn generate_cross_mesh<S: Shape<3, Coord = u32>>(&self, chunk: &Chunk<S>, cross_voxels: &[(usize, u16)]) -> Vec<(VoxelMaterialHandle, Mesh)> {
         let mut cross_groups: HashMap<VoxelMaterialHandle, (Vec<u32>, Vec<[f32; 3]>, Vec<[f32; 3]>, Vec<[f32; 2]>)> = HashMap::new();
+        let dims = chunk.shape.as_array();
+        let min = [0, 0, 0];
+        let max = [dims[0] - 1, dims[1] - 1, dims[2] - 1];
 
-        for (index, voxel_id) in cross_voxels {
+        // Define the two diagonal planes relative to the voxel origin (0,0,0) to (1,1,1)
+        let planes = [
+            (
+                [[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 0.0]], // Positions
+                [-0.70710678, 0.0, 0.70710678] // Normal
+            ),
+            (
+                [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 1.0]], // Positions
+                [0.70710678, 0.0, 0.70710678] // Normal
+            )
+        ];
+        
+        let uvs_pattern = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+        let indices_pattern = [0, 1, 2, 0, 2, 3];
+
+        for &(index, voxel_id) in cross_voxels {
             let pos_arr = chunk.shape.delinearize(index as u32);
             if pos_arr[0] <= min[0] || pos_arr[0] >= max[0] ||
                pos_arr[1] <= min[1] || pos_arr[1] >= max[1] ||
@@ -198,68 +243,34 @@ impl MaterialRepository {
             
             let (indices, positions, normals, uvs) = cross_groups.entry(handle).or_insert_with(|| (Vec::new(), Vec::new(), Vec::new(), Vec::new()));
             
-            let start_index = positions.len() as u32;
-            
-            // Plane 1 (Diagonal 1)
-            positions.push([pos.x, pos.y, pos.z]);
-            positions.push([pos.x + VOXEL_SIZE, pos.y, pos.z + VOXEL_SIZE]);
-            positions.push([pos.x + VOXEL_SIZE, pos.y + VOXEL_SIZE, pos.z + VOXEL_SIZE]);
-            positions.push([pos.x, pos.y + VOXEL_SIZE, pos.z]);
-
-            let normal1 = [-0.70710678, 0.0, 0.70710678];
-            normals.push(normal1);
-            normals.push(normal1);
-            normals.push(normal1);
-            normals.push(normal1);
-
-            uvs.push([0.0, 1.0]);
-            uvs.push([1.0, 1.0]);
-            uvs.push([1.0, 0.0]);
-            uvs.push([0.0, 0.0]);
-
-            indices.push(start_index);
-            indices.push(start_index + 1);
-            indices.push(start_index + 2);
-            indices.push(start_index);
-            indices.push(start_index + 2);
-            indices.push(start_index + 3);
-
-            // Plane 2 (Diagonal 2)
-            let start_index = positions.len() as u32;
-            positions.push([pos.x, pos.y, pos.z + VOXEL_SIZE]);
-            positions.push([pos.x + VOXEL_SIZE, pos.y, pos.z]);
-            positions.push([pos.x + VOXEL_SIZE, pos.y + VOXEL_SIZE, pos.z]);
-            positions.push([pos.x, pos.y + VOXEL_SIZE, pos.z + VOXEL_SIZE]);
-
-            let normal2 = [0.70710678, 0.0, 0.70710678];
-            normals.push(normal2);
-            normals.push(normal2);
-            normals.push(normal2);
-            normals.push(normal2);
-
-            uvs.push([0.0, 1.0]);
-            uvs.push([1.0, 1.0]);
-            uvs.push([1.0, 0.0]);
-            uvs.push([0.0, 0.0]);
-
-            indices.push(start_index);
-            indices.push(start_index + 1);
-            indices.push(start_index + 2);
-            indices.push(start_index);
-            indices.push(start_index + 2);
-            indices.push(start_index + 3);
+            for (plane_positions, normal) in &planes {
+                let start_index = positions.len() as u32;
+                
+                for &p in plane_positions {
+                    positions.push([
+                        pos.x + p[0] * VOXEL_SIZE,
+                        pos.y + p[1] * VOXEL_SIZE,
+                        pos.z + p[2] * VOXEL_SIZE
+                    ]);
+                    normals.push(*normal);
+                }
+                
+                uvs.extend_from_slice(&uvs_pattern);
+                
+                for &i in &indices_pattern {
+                    indices.push(start_index + i);
+                }
+            }
         }
 
-        for (handle, (indices, positions, normals, uvs)) in cross_groups {
+        cross_groups.into_iter().map(|(handle, (indices, positions, normals, uvs))| {
             let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
                 .with_inserted_indices(Indices::U32(indices))
                 .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
                 .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-            meshes.push((handle, mesh));
-        }
-
-        meshes
+            (handle, mesh)
+        }).collect()
     }
 }
 
@@ -269,7 +280,7 @@ pub fn material_setup(
     mut material_repo: ResMut<MaterialRepository>,
     asset_server: Res<AssetServer>,
 ) {
-    let loading_seettings = |s: &mut _| {
+    let loading_settings = |s: &mut ImageLoaderSettings| {
         *s = ImageLoaderSettings {
             sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
                 address_mode_u: ImageAddressMode::Repeat,
@@ -279,8 +290,9 @@ pub fn material_setup(
             ..default()
         }
     };
+    
     let default_material = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load_with_settings("textures/default.png", loading_seettings)),
+        base_color_texture: Some(asset_server.load_with_settings("textures/default.png", loading_settings)),
         ..default()
     });
 
@@ -289,64 +301,92 @@ pub fn material_setup(
     let definitions = voxel::get_voxel_definitions();
 
     for (id, visibility, material_def) in definitions {
-        let (handles, kind) = match material_def {
-            VoxelMaterial::None => {
-                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(material_repo.default_material.clone())), VoxelMeshKind::Cube)
-            },
-            VoxelMaterial::Uniform(def) => {
-                let material = create_material(&mut materials, &asset_server, def, loading_seettings);
-                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(material.clone())), VoxelMeshKind::Cube)
-            },
-            VoxelMaterial::Column { top, side, bottom } => {
-                let top_mat = create_material(&mut materials, &asset_server, top, loading_seettings);
-                let side_mat = create_material(&mut materials, &asset_server, side, loading_seettings);
-                let bottom_mat = create_material(&mut materials, &asset_server, bottom, loading_seettings);
-                ([
-                    VoxelMaterialHandle::Standard(side_mat.clone()),
-                    VoxelMaterialHandle::Standard(bottom_mat),
-                    VoxelMaterialHandle::Standard(side_mat.clone()),
-                    VoxelMaterialHandle::Standard(side_mat.clone()),
-                    VoxelMaterialHandle::Standard(top_mat),
-                    VoxelMaterialHandle::Standard(side_mat)
-                ], VoxelMeshKind::Cube)
-            },
-            VoxelMaterial::Cross(def) => {
-                let mut def = def;
-                def.alpha_mode = AlphaMode::Mask(0.5);
-                let texture = def.texture.map(|path| asset_server.load_with_settings(path, loading_seettings));
-                let handle = materials.add(StandardMaterial {
-                    base_color: def.base_color,
-                    base_color_texture: texture,
-                    perceptual_roughness: def.perceptual_roughness,
-                    reflectance: def.reflectance,
-                    alpha_mode: def.alpha_mode,
-                    cull_mode: None, // Double sided
-                    double_sided: true,
-                    ..default()
-                });
-                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(handle.clone())), VoxelMeshKind::Cross)
-            },
-            VoxelMaterial::Water(def) => {
-                let material = water_materials.add(WaterMaterial {
-                    base: StandardMaterial { 
-                        base_color: Color::linear_rgba(0.0, 0.5, 1.0, 0.1),
-                        base_color_texture: def.texture.map(|path| asset_server.load_with_settings(path, loading_seettings)),
-                        perceptual_roughness: 0.08,
-                        metallic: 0.1,
-                        reflectance: 0.5,
-                        alpha_mode: AlphaMode::Blend,
-                        ..default()
-                     },
-                    extension: WaterExtension::default(),
-                });
-                (std::array::from_fn(|_| VoxelMaterialHandle::Water(material.clone())), VoxelMeshKind::Water)
-            },
-        };
+        let (handles, kind) = create_voxel_material_handles(
+            material_def,
+            &mut materials,
+            &mut water_materials,
+            &asset_server,
+            &material_repo.default_material,
+        );
         material_repo.set_material(id, handles, visibility, kind);
     }
 }
 
-fn create_material(
+fn create_voxel_material_handles(
+    def: VoxelMaterial,
+    materials: &mut Assets<StandardMaterial>,
+    water_materials: &mut Assets<WaterMaterial>,
+    asset_server: &AssetServer,
+    default_material: &Handle<StandardMaterial>,
+) -> ([VoxelMaterialHandle; 6], VoxelMeshKind) {
+    let loading_settings = |s: &mut ImageLoaderSettings| {
+        *s = ImageLoaderSettings {
+            sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::Repeat,
+                address_mode_v: ImageAddressMode::Repeat,
+                ..default()
+            }),
+            ..default()
+        }
+    };
+
+    match def {
+        VoxelMaterial::None => (
+            std::array::from_fn(|_| VoxelMaterialHandle::Standard(default_material.clone())),
+            VoxelMeshKind::Cube
+        ),
+        VoxelMaterial::Uniform(def) => {
+            let material = create_standard_material(materials, asset_server, def, loading_settings);
+            (std::array::from_fn(|_| VoxelMaterialHandle::Standard(material.clone())), VoxelMeshKind::Cube)
+        },
+        VoxelMaterial::Column { top, side, bottom } => {
+            let top_mat = create_standard_material(materials, asset_server, top, loading_settings);
+            let side_mat = create_standard_material(materials, asset_server, side, loading_settings);
+            let bottom_mat = create_standard_material(materials, asset_server, bottom, loading_settings);
+            ([
+                VoxelMaterialHandle::Standard(side_mat.clone()),
+                VoxelMaterialHandle::Standard(bottom_mat),
+                VoxelMaterialHandle::Standard(side_mat.clone()),
+                VoxelMaterialHandle::Standard(side_mat.clone()),
+                VoxelMaterialHandle::Standard(top_mat),
+                VoxelMaterialHandle::Standard(side_mat)
+            ], VoxelMeshKind::Cube)
+        },
+        VoxelMaterial::Cross(def) => {
+            let mut def = def;
+            def.alpha_mode = AlphaMode::Mask(0.5);
+            let texture = def.texture.map(|path| asset_server.load_with_settings(path, loading_settings));
+            let handle = materials.add(StandardMaterial {
+                base_color: def.base_color,
+                base_color_texture: texture,
+                perceptual_roughness: def.perceptual_roughness,
+                reflectance: def.reflectance,
+                alpha_mode: def.alpha_mode,
+                cull_mode: None, // Double sided
+                double_sided: true,
+                ..default()
+            });
+            (std::array::from_fn(|_| VoxelMaterialHandle::Standard(handle.clone())), VoxelMeshKind::Cross)
+        },
+        VoxelMaterial::Water(def) => {
+            let material = water_materials.add(WaterMaterial {
+                base: StandardMaterial { 
+                    base_color: Color::linear_rgba(0.0, 0.5, 1.0, 0.2),
+                    base_color_texture: def.texture.map(|path| asset_server.load_with_settings(path, loading_settings)),
+                    perceptual_roughness: 0.08,
+                    metallic: 0.1,
+                    reflectance: 1.0,
+                    alpha_mode: AlphaMode::Blend,
+                    ..default()
+                 },
+                extension: WaterExtension::default(),
+            });
+            (std::array::from_fn(|_| VoxelMaterialHandle::Water(material.clone())), VoxelMeshKind::Water)
+        },
+    }
+}
+
+fn create_standard_material(
     materials: &mut Assets<StandardMaterial>,
     asset_server: &AssetServer,
     def: voxel::MaterialDef,

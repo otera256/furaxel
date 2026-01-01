@@ -53,9 +53,9 @@ struct WaterExtension {
     _padding: vec3<f32>,
 }
 
-const WaveScale: f32 = 1.8;
-const WaveSpeed: f32 = 0.2;
-const WaveStrength: f32 = 0.2;
+const WaveScale: f32 = 4.0;
+const WaveSpeed: f32 = 0.4;
+const WaveStrength: f32 = 0.1;
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> water_ext: WaterExtension;
 
@@ -85,10 +85,6 @@ fn fragment(
 
     var out: FragmentOutput;
 
-
-    // PBRライティング計算
-    out.color = apply_pbr_lighting(pbr_input);
-
     // 現在のピクセル（水面）の深度情報
     let surface_raw_depth = in.position.z;
     let surface_view_z = depth_ndc_to_view_z(surface_raw_depth);
@@ -106,8 +102,8 @@ fn fragment(
 
     // 水の色設定
     let deep_color = vec4<f32>(0.0, 0.03, 0.2, 0.99);
-    let shallow_color = vec4<f32>(0.2, 0.4, 1.0, 0.5);
-    let depth_scale = 0.5;
+    let shallow_color = vec4<f32>(0.1, 0.25, 0.6, 0.6);
+    let depth_scale = 0.7;
 
     // let deep_color = water_ext.deep_color;
     // let shallow_color = water_ext.shallow_color;
@@ -118,7 +114,11 @@ fn fragment(
     let water_color = mix(deep_color, shallow_color, absorption);
 
     // 半透明合成
-    out.color = mix(out.color, water_color, water_color.a);
+    pbr_input.material.base_color = mix(pbr_input.material.base_color, water_color, water_color.a);
+
+    // PBRライティング計算
+    out.color = apply_pbr_lighting(pbr_input);
+
 
 
     return out;

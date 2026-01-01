@@ -1,4 +1,3 @@
-use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::tasks::futures::check_ready;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -17,9 +16,6 @@ pub struct NeedMeshUpdate;
 
 #[derive(Component)]
 pub struct NeedImmediateMeshUpdate;
-
-#[derive(Component)]
-pub struct TerrainMesh;
 
 #[derive(Component)]
 pub struct ComputingMesh(Task<Vec<(VoxelMaterialHandle, Mesh)>>);
@@ -65,23 +61,7 @@ pub fn handle_mesh_tasks(
             // Spawn new meshes
             commands.entity(entity).with_children(|parent| {
                 for (material, mesh) in generated_meshes {
-                    match material {
-                        VoxelMaterialHandle::Standard(handle) => {
-                            parent.spawn((
-                                Mesh3d(meshes.add(mesh)),
-                                MeshMaterial3d(handle),
-                                TerrainMesh,
-                            ));
-                        },
-                        VoxelMaterialHandle::Water(handle) => {
-                            parent.spawn((
-                                Mesh3d(meshes.add(mesh)),
-                                MeshMaterial3d(handle),
-                                TerrainMesh,
-                                NotShadowCaster
-                            ));
-                        },
-                    }
+                    material.spawn(parent, meshes.add(mesh));
                 }
             });
         }
@@ -108,23 +88,7 @@ pub fn immediate_mesh_update(
 
             commands.entity(entity).with_children(|parent| {
                 for (material, mesh) in generated_meshes {
-                    match material {
-                        VoxelMaterialHandle::Standard(handle) => {
-                            parent.spawn((
-                                Mesh3d(meshes.add(mesh)),
-                                MeshMaterial3d(handle),
-                                TerrainMesh,
-                            ));
-                        },
-                        VoxelMaterialHandle::Water(handle) => {
-                            parent.spawn((
-                                Mesh3d(meshes.add(mesh)),
-                                MeshMaterial3d(handle),
-                                TerrainMesh,
-                                NotShadowCaster
-                            ));
-                        },
-                    }
+                    material.spawn(parent, meshes.add(mesh));
                 }
             });
         }
