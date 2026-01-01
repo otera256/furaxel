@@ -108,6 +108,7 @@ macro_rules! define_voxels {
 }
 
 define_voxels! {
+    // System
     EMPTY = 0 => {
         visibility: VoxelVisibility::Empty,
         material: VoxelMaterial::None
@@ -116,11 +117,17 @@ define_voxels! {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::texture("textures/default.png"))
     },
+
+    // Terrain (Ground)
     DIRT = 2 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::texture("textures/dirt.png").with_reflectance(0.05))
     },
-    GRASS = 3 => {
+    COARSE_DIRT = 3 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.4, 0.3, 0.2)).with_roughness(0.9))
+    },
+    GRASS = 4 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Column {
             top: MaterialDef::texture("textures/grass_top.png").with_reflectance(0.2),
@@ -128,101 +135,123 @@ define_voxels! {
             bottom: MaterialDef::texture("textures/dirt.png").with_reflectance(0.05)
         }
     },
-    STONE = 4 => {
+    STONE = 5 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::texture("textures/stone.png"))
     },
-    WATER = 5 => {
-        visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Water(MaterialDef::color(Color::srgba(0.0, 0.3, 0.8, 0.5)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
-    },
-    SAND = 6 => {
+    COBBLESTONE = 6 => {
         visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::texture("textures/sand.png"))
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.5, 0.5, 0.5)).with_roughness(0.8))
     },
-    OAK_LOG = 7 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.4, 0.25, 0.1)).with_roughness(0.8))
-    },
-    OAK_LEAVES = 8 => {
-        visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.1, 0.6, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
-    },
-    SNOW = 9 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.95, 0.95, 1.0)).with_roughness(0.5))
-    },
-    GRAVEL = 10 => {
+    GRAVEL = 7 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.4, 0.4, 0.4)))
     },
-    MUD = 11 => {
+    SAND = 8 => {
         visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.2, 0.1)).with_roughness(0.8))
+        material: VoxelMaterial::Uniform(MaterialDef::texture("textures/sand.png"))
     },
-    CLAY = 12 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.7, 0.4, 0.3)).with_roughness(0.8))
-    },
-    CACTUS = 13 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.1, 0.5, 0.1)).with_roughness(0.8))
-    },
-    FLOWER_RED = 14 => {
-        visibility: VoxelVisibility::Empty,
-        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_red.png"))
-    },
-    FLOWER_YELLOW = 15 => {
-        visibility: VoxelVisibility::Empty,
-        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_yellow.png"))
-    },
-    PINE_LOG = 16 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.2, 0.1)).with_roughness(0.8))
-    },
-    PINE_LEAVES = 17 => {
-        visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.05, 0.3, 0.05, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
-    },
-    BIRCH_LOG = 18 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.9, 0.9, 0.8)).with_roughness(0.8))
-    },
-    BIRCH_LEAVES = 19 => {
-        visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.4, 0.8, 0.4, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
-    },
-    ICE = 20 => {
-        visibility: VoxelVisibility::Translucent,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.6, 0.8, 1.0, 0.8)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
-    },
-    RED_SAND = 21 => {
+    RED_SAND = 9 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.8, 0.4, 0.1)))
     },
-    PACKED_ICE = 22 => {
+    MUD = 10 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.2, 0.1)).with_roughness(0.8))
+    },
+    CLAY = 11 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.7, 0.4, 0.3)).with_roughness(0.8))
+    },
+    SNOW = 12 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.95, 0.95, 1.0)).with_roughness(0.5))
+    },
+    ICE = 13 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.6, 0.8, 1.0, 0.8)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
+    },
+    PACKED_ICE = 14 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.7, 0.8, 1.0)).with_roughness(0.2))
     },
-    BAMBOO = 23 => {
-        visibility: VoxelVisibility::Opaque,
-        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.7, 0.2)).with_roughness(0.5))
+
+    // Liquid
+    WATER = 15 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Water(MaterialDef::color(Color::srgba(0.0, 0.3, 0.8, 0.5)).with_roughness(0.1).with_alpha_mode(AlphaMode::Blend))
     },
-    ACACIA_LOG = 24 => {
+
+    // Trees
+    OAK_LOG = 16 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.4, 0.25, 0.1)).with_roughness(0.8))
+    },
+    OAK_LEAVES = 17 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.1, 0.6, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    PINE_LOG = 18 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.2, 0.1)).with_roughness(0.8))
+    },
+    PINE_LEAVES = 19 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.05, 0.3, 0.05, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    BIRCH_LOG = 20 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.9, 0.9, 0.8)).with_roughness(0.8))
+    },
+    BIRCH_LEAVES = 21 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.4, 0.8, 0.4, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    ACACIA_LOG = 22 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.45, 0.4, 0.35)).with_roughness(0.8))
     },
-    ACACIA_LEAVES = 25 => {
+    ACACIA_LEAVES = 23 => {
         visibility: VoxelVisibility::Translucent,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.3, 0.5, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
     },
-    JUNGLE_LOG = 26 => {
+    JUNGLE_LOG = 24 => {
         visibility: VoxelVisibility::Opaque,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.35, 0.2, 0.05)).with_roughness(0.8))
     },
-    JUNGLE_LEAVES = 27 => {
+    JUNGLE_LEAVES = 25 => {
         visibility: VoxelVisibility::Translucent,
         material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.1, 0.7, 0.1, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+    CHERRY_LOG = 26 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.4, 0.1, 0.1)).with_roughness(0.8))
+    },
+    CHERRY_LEAVES = 27 => {
+        visibility: VoxelVisibility::Translucent,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgba(0.9, 0.4, 0.6, 0.8)).with_roughness(0.8).with_alpha_mode(AlphaMode::Blend))
+    },
+
+    // Plants
+    CACTUS = 28 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.1, 0.5, 0.1)).with_roughness(0.8))
+    },
+    BAMBOO = 29 => {
+        visibility: VoxelVisibility::Opaque,
+        material: VoxelMaterial::Uniform(MaterialDef::color(Color::srgb(0.3, 0.7, 0.2)).with_roughness(0.5))
+    },
+    FLOWER_RED = 30 => {
+        visibility: VoxelVisibility::Empty,
+        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_red.png"))
+    },
+    FLOWER_YELLOW = 31 => {
+        visibility: VoxelVisibility::Empty,
+        material: VoxelMaterial::Cross(MaterialDef::texture("textures/flower_yellow.png"))
+    },
+    TALL_GRASS = 32 => {
+        visibility: VoxelVisibility::Empty,
+        material: VoxelMaterial::Cross(MaterialDef::color(Color::srgba(0.2, 0.6, 0.2, 0.0)))
     }
 }
 
