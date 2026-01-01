@@ -165,7 +165,7 @@ pub fn generate_base_terrain(
             let idx = AltitudeMapShape {}.linearize([x, z]) as usize;
             let global_altitude = altitude_map[idx];
             let biome_id = biome_map[idx];
-            let biome = config.get_biome_by_id(biome_id);
+            let biome = config.get_biome_data_by_id(biome_id);
             let altitude = global_altitude - chunk_pos.y * TERRAIN_CHUNK_SIZE as i32;
 
             for y in 0..TERRAIN_CHUNK_SIZE {
@@ -217,7 +217,7 @@ pub fn generate_features(
                 let world_z = z as i32 + chunk_pos.z * TERRAIN_CHUNK_SIZE as i32;
                 
                 let biome_id = biome_map[idx];
-                let biome = config.get_biome_by_id(biome_id);
+                let biome = config.get_biome_data_by_id(biome_id);
                 
                 if !biome.features.is_empty() {
                     for (i, (feature, probability)) in biome.features.iter().enumerate() {

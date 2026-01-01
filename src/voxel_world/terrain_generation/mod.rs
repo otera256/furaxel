@@ -1,7 +1,7 @@
-mod biomes;
+pub mod biomes;
 mod storage;
 mod feature;
-mod generation;
+pub mod generation;
 
 use bevy::{
     ecs::world::CommandQueue, prelude::*, tasks::{AsyncComputeTaskPool, Task, futures::check_ready}
