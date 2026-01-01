@@ -335,7 +335,6 @@ pub fn material_setup(
                         metallic: 0.1,
                         reflectance: 0.5,
                         alpha_mode: AlphaMode::Blend,
-                        cull_mode: None,
                         ..default()
                      },
                     extension: WaterExtension::default(),

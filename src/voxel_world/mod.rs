@@ -7,7 +7,7 @@ pub mod player;
 pub mod terrain_generation;
 pub mod rendering;
 
-use bevy::{core_pipeline::{Skybox, prepass::DepthPrepass}, light::{CascadeShadowConfigBuilder, NotShadowCaster}, pbr::Atmosphere, prelude::*};
+use bevy::{core_pipeline::{prepass::DepthPrepass}, light::CascadeShadowConfigBuilder, pbr::Atmosphere, prelude::*};
 use bevy_flycam::{FlyCam, MovementSettings};
 use chunking::*;
 use chunk_map::*;
@@ -66,7 +66,7 @@ fn setup_world(
             directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
             directional_light_exponent: 30.0,
             falloff: FogFalloff::from_visibility_colors(
-                20000.0, // distance in world units up to which objects retain visibility (>= 5% contrast)
+                12000.0, // distance in world units up to which objects retain visibility (>= 5% contrast)
                 Color::srgb(0.35, 0.5, 0.66), // atmospheric extinction color (after light is lost due to absorption by atmospheric particles)
                 Color::srgb(0.8, 0.844, 1.0), // atmospheric inscattering color (light gained due to scattering from the sun)
             ),
@@ -79,6 +79,7 @@ fn setup_world(
         DirectionalLight {
             color: Color::srgb(0.98, 0.95, 0.82),
             shadows_enabled: true,
+            illuminance: 20000.0,
             ..default()
         },
         cascade_shadow_config,

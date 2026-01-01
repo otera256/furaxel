@@ -1,10 +1,7 @@
-#import bevy_pbr::mesh_view_bindings       // view bindings
-#import bevy_pbr::pbr_types::{PbrInput, pbr_input_new}
-#import bevy_pbr::pbr_fragment::pbr_input_from_standard_material
-
 #import bevy_pbr::{
     mesh_view_bindings::globals,
     forward_io::{VertexOutput, FragmentOutput},
+    pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
     prepass_utils::prepass_depth,
     view_transformations::{
@@ -57,8 +54,8 @@ struct WaterExtension {
 }
 
 const WaveScale: f32 = 1.8;
-const WaveSpeed: f32 = 0.15;
-const WaveStrength: f32 = 0.3;
+const WaveSpeed: f32 = 0.2;
+const WaveStrength: f32 = 0.2;
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> water_ext: WaterExtension;
 
@@ -92,30 +89,33 @@ fn fragment(
     // PBRライティング計算
     out.color = apply_pbr_lighting(pbr_input);
 
-    // 1. 現在のピクセル（水面）の深度情報
+    // 現在のピクセル（水面）の深度情報
     let surface_raw_depth = in.position.z;
     let surface_view_z = depth_ndc_to_view_z(surface_raw_depth);
 
-    // 2. 背景（地形）の深度情報
+    // 背景（地形）の深度情報
     let background_raw_depth = prepass_depth(in.position, 0u);
     let background_view_z = depth_ndc_to_view_z(background_raw_depth);
 
-    // 3. 水深の計算
-    // BevyのView Zはカメラ前方に向かって「マイナス」です（例: 手前-1.0, 奥-100.0）
-    // そのため、水深 = 水面Z - 地形Z で計算します。
-    // 例: 水面(-5m) - 地形(-10m) = +5m (正しい水深)
+    // 水深の計算
+    // BevyのView Zはカメラ前方に向かって負の値なので引き算の順番に注意
     let water_depth = surface_view_z - background_view_z;
-
-    // ★バグ対策: 
-    // Skyboxなど「無限遠（Far Plane）」は depth=0.0 (Reverse Z) になり、
-    // view_z が -infinity になることがあります。
-    // これを clamp して計算が壊れないようにします。
+    // 念のため
     let safe_depth = max(0.0, water_depth);
 
-    // 4. 吸光（色計算）
-    // Beer's Law (ベールの法則) を適用
-    let absorption = exp(-safe_depth * water_ext.depth_scale);
-    let water_color = mix(water_ext.deep_color, water_ext.shallow_color, absorption);
+
+    // 水の色設定
+    let deep_color = vec4<f32>(0.0, 0.03, 0.2, 0.99);
+    let shallow_color = vec4<f32>(0.2, 0.4, 1.0, 0.5);
+    let depth_scale = 0.5;
+
+    // let deep_color = water_ext.deep_color;
+    // let shallow_color = water_ext.shallow_color;
+    // let depth_scale = water_ext.depth_scale;
+
+    // Beer's Lawを適用
+    let absorption = exp(-safe_depth * depth_scale);
+    let water_color = mix(deep_color, shallow_color, absorption);
 
     // 半透明合成
     out.color = mix(out.color, water_color, water_color.a);
