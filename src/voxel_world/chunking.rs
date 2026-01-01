@@ -67,7 +67,7 @@ pub fn update_chunk_entities(
             to_remove.push(*chunk_pos);
         }
     }
-    info!("Creating {} chunks, removing {} chunks", to_create.len(), to_remove.len());
+    // info!("Creating {} chunks, removing {} chunks", to_create.len(), to_remove.len());
     for chunk_pos in to_create {
         let entity = commands.spawn((
             TerrainChunk {

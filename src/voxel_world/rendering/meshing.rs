@@ -1,3 +1,4 @@
+use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::tasks::futures::check_ready;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -5,7 +6,7 @@ use crate::voxel_world::{
     chunk_map::ChunkMap,
     chunking::TerrainChunk,
 };
-use super::material::MaterialRepository;
+use super::material::{MaterialRepository, VoxelMaterialHandle};
 
 // メッシュが作成中または既に作成されたチャンクに付与されるコンポーネント
 #[derive(Component)]
@@ -21,7 +22,7 @@ pub struct NeedImmediateMeshUpdate;
 pub struct TerrainMesh;
 
 #[derive(Component)]
-pub struct ComputingMesh(Task<Vec<(Handle<StandardMaterial>, Mesh)>>);
+pub struct ComputingMesh(Task<Vec<(VoxelMaterialHandle, Mesh)>>);
 
 pub fn queue_mesh_tasks(
     mut commands: Commands,
@@ -64,11 +65,23 @@ pub fn handle_mesh_tasks(
             // Spawn new meshes
             commands.entity(entity).with_children(|parent| {
                 for (material, mesh) in generated_meshes {
-                    parent.spawn((
-                        Mesh3d(meshes.add(mesh)),
-                        MeshMaterial3d(material),
-                        TerrainMesh,
-                    ));
+                    match material {
+                        VoxelMaterialHandle::Standard(handle) => {
+                            parent.spawn((
+                                Mesh3d(meshes.add(mesh)),
+                                MeshMaterial3d(handle),
+                                TerrainMesh,
+                            ));
+                        },
+                        VoxelMaterialHandle::Water(handle) => {
+                            parent.spawn((
+                                Mesh3d(meshes.add(mesh)),
+                                MeshMaterial3d(handle),
+                                TerrainMesh,
+                                NotShadowCaster
+                            ));
+                        },
+                    }
                 }
             });
         }
@@ -95,11 +108,23 @@ pub fn immediate_mesh_update(
 
             commands.entity(entity).with_children(|parent| {
                 for (material, mesh) in generated_meshes {
-                    parent.spawn((
-                        Mesh3d(meshes.add(mesh)),
-                        MeshMaterial3d(material),
-                        TerrainMesh,
-                    ));
+                    match material {
+                        VoxelMaterialHandle::Standard(handle) => {
+                            parent.spawn((
+                                Mesh3d(meshes.add(mesh)),
+                                MeshMaterial3d(handle),
+                                TerrainMesh,
+                            ));
+                        },
+                        VoxelMaterialHandle::Water(handle) => {
+                            parent.spawn((
+                                Mesh3d(meshes.add(mesh)),
+                                MeshMaterial3d(handle),
+                                TerrainMesh,
+                                NotShadowCaster
+                            ));
+                        },
+                    }
                 }
             });
         }

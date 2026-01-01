@@ -1,7 +1,14 @@
 use bevy::{asset::RenderAssetUsages, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, mesh::{Indices, PrimitiveTopology}, platform::collections::HashMap, prelude::*};
 use block_mesh::{Axis, GreedyQuadsBuffer, MergeVoxel, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, VoxelVisibility, greedy_quads, ndshape::Shape};
 use itertools::Itertools;
-use crate::voxel_world::{chunk::Chunk, voxel::{self, VoxelMaterial, VOXEL_SIZE}};
+use crate::voxel_world::{chunk::Chunk, rendering::water::WaterExtension, voxel::{self, VOXEL_SIZE, VoxelMaterial}};
+use super::water::WaterMaterial;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VoxelMaterialHandle {
+    Standard(Handle<StandardMaterial>),
+    Water(Handle<WaterMaterial>),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoxelMeshKind {
@@ -14,7 +21,7 @@ pub enum VoxelMeshKind {
 pub struct MaterialRepository {
     // if default_material is shown, some error occurred
     pub default_material: Handle<StandardMaterial>,
-    pub materials: Vec<[Handle<StandardMaterial>; 6]>,
+    pub materials: Vec<[VoxelMaterialHandle; 6]>,
     pub visibilities: Vec<VoxelVisibility>,
     pub voxel_kinds: Vec<VoxelMeshKind>,
 }
@@ -31,10 +38,10 @@ impl Default for MaterialRepository {
 }
 
 impl MaterialRepository {
-    pub fn set_material(&mut self, id: u16, handles: [Handle<StandardMaterial>; 6], visibility: VoxelVisibility, kind: VoxelMeshKind) {
+    pub fn set_material(&mut self, id: u16, handles: [VoxelMaterialHandle; 6], visibility: VoxelVisibility, kind: VoxelMeshKind) {
         let id = id as usize;
         if id >= self.materials.len() {
-            self.materials.resize(id + 1, std::array::from_fn(|_| self.default_material.clone()));
+            self.materials.resize(id + 1, std::array::from_fn(|_| VoxelMaterialHandle::Standard(self.default_material.clone())));
             self.visibilities.resize(id + 1, VoxelVisibility::Empty);
             self.voxel_kinds.resize(id + 1, VoxelMeshKind::Cube);
         }
@@ -43,9 +50,9 @@ impl MaterialRepository {
         self.voxel_kinds[id] = kind;
     }
 
-    pub fn get_material_handle(&self, material_index: usize, face_index: usize) -> Handle<StandardMaterial> {
+    pub fn get_material_handle(&self, material_index: usize, face_index: usize) -> VoxelMaterialHandle {
         if material_index >= self.materials.len() {
-            self.default_material.clone()
+            VoxelMaterialHandle::Standard(self.default_material.clone())
         } else {
             self.materials[material_index][face_index].clone()
         }
@@ -67,7 +74,7 @@ impl MaterialRepository {
         }
     }
 
-    pub fn create_mesh<S: Shape<3, Coord = u32>>(&self, chunk: Chunk<S>) -> Vec<(Handle<StandardMaterial>, Mesh)> {
+    pub fn create_mesh<S: Shape<3, Coord = u32>>(&self, chunk: Chunk<S>) -> Vec<(VoxelMaterialHandle, Mesh)> {
         let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
 
         let mut buffer = GreedyQuadsBuffer::new(chunk.voxels.len());
@@ -156,7 +163,7 @@ impl MaterialRepository {
             }
         }
 
-        let mut meshes: Vec<(Handle<StandardMaterial>, Mesh)> = buffer
+        let mut meshes: Vec<(VoxelMaterialHandle, Mesh)> = buffer
             .quads
             .groups
             .into_iter()
@@ -177,7 +184,7 @@ impl MaterialRepository {
             .collect();
 
         // Cross Meshing
-        let mut cross_groups: HashMap<Handle<StandardMaterial>, (Vec<u32>, Vec<[f32; 3]>, Vec<[f32; 3]>, Vec<[f32; 2]>)> = HashMap::new();
+        let mut cross_groups: HashMap<VoxelMaterialHandle, (Vec<u32>, Vec<[f32; 3]>, Vec<[f32; 3]>, Vec<[f32; 2]>)> = HashMap::new();
 
         for (index, voxel_id) in cross_voxels {
             let pos_arr = chunk.shape.delinearize(index as u32);
@@ -258,6 +265,7 @@ impl MaterialRepository {
 
 pub fn material_setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
     mut material_repo: ResMut<MaterialRepository>,
     asset_server: Res<AssetServer>,
 ) {
@@ -283,17 +291,24 @@ pub fn material_setup(
     for (id, visibility, material_def) in definitions {
         let (handles, kind) = match material_def {
             VoxelMaterial::None => {
-                (std::array::from_fn(|_| material_repo.default_material.clone()), VoxelMeshKind::Cube)
+                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(material_repo.default_material.clone())), VoxelMeshKind::Cube)
             },
             VoxelMaterial::Uniform(def) => {
                 let material = create_material(&mut materials, &asset_server, def, loading_seettings);
-                (std::array::from_fn(|_| material.clone()), VoxelMeshKind::Cube)
+                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(material.clone())), VoxelMeshKind::Cube)
             },
             VoxelMaterial::Column { top, side, bottom } => {
                 let top_mat = create_material(&mut materials, &asset_server, top, loading_seettings);
                 let side_mat = create_material(&mut materials, &asset_server, side, loading_seettings);
                 let bottom_mat = create_material(&mut materials, &asset_server, bottom, loading_seettings);
-                ([side_mat.clone(), bottom_mat, side_mat.clone(), side_mat.clone(), top_mat, side_mat], VoxelMeshKind::Cube)
+                ([
+                    VoxelMaterialHandle::Standard(side_mat.clone()),
+                    VoxelMaterialHandle::Standard(bottom_mat),
+                    VoxelMaterialHandle::Standard(side_mat.clone()),
+                    VoxelMaterialHandle::Standard(side_mat.clone()),
+                    VoxelMaterialHandle::Standard(top_mat),
+                    VoxelMaterialHandle::Standard(side_mat)
+                ], VoxelMeshKind::Cube)
             },
             VoxelMaterial::Cross(def) => {
                 let mut def = def;
@@ -309,11 +324,23 @@ pub fn material_setup(
                     double_sided: true,
                     ..default()
                 });
-                (std::array::from_fn(|_| handle.clone()), VoxelMeshKind::Cross)
+                (std::array::from_fn(|_| VoxelMaterialHandle::Standard(handle.clone())), VoxelMeshKind::Cross)
             },
             VoxelMaterial::Water(def) => {
-                let material = create_material(&mut materials, &asset_server, def, loading_seettings);
-                (std::array::from_fn(|_| material.clone()), VoxelMeshKind::Water)
+                let material = water_materials.add(WaterMaterial {
+                    base: StandardMaterial { 
+                        base_color: Color::linear_rgba(0.0, 0.5, 1.0, 0.1),
+                        base_color_texture: def.texture.map(|path| asset_server.load_with_settings(path, loading_seettings)),
+                        perceptual_roughness: 0.08,
+                        metallic: 0.1,
+                        reflectance: 0.5,
+                        alpha_mode: AlphaMode::Blend,
+                        cull_mode: None,
+                        ..default()
+                     },
+                    extension: WaterExtension::default(),
+                });
+                (std::array::from_fn(|_| VoxelMaterialHandle::Water(material.clone())), VoxelMeshKind::Water)
             },
         };
         material_repo.set_material(id, handles, visibility, kind);
