@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use block_mesh::ndshape::{AbstractShape, ConstShape2u32};
-use noise::{Fbm, MultiFractal, NoiseFn, Perlin, RidgedMulti};
+use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex, RidgedMulti};
 use crate::voxel_world::{
     terrain_chunk::{TERRAIN_CHUNK_SIZE, TerrainChunkData},
     voxel::{VOXEL_SIZE, Voxel},
@@ -21,37 +21,43 @@ pub fn generate_altitude_map(
     config: &BiomeRegistry,
 ) -> (Vec<i32>, Vec<u8>) {
     // --- Noise Generation Logic ---
+    // Domain Warping: Used to distort the coordinate system
+    let domain_warp = Fbm::<OpenSimplex>::new(seed.wrapping_add(999))
+        .set_frequency(0.005)
+        .set_octaves(3)
+        .set_persistence(0.5);
+
     // Continentalness: Controls the general height (Ocean, Coast, Land, Inland)
-    let continentalness = Fbm::<Perlin>::new(seed)
-        .set_frequency(0.0005)
-        .set_octaves(5)
+    let continentalness = Fbm::<OpenSimplex>::new(seed)
+        .set_frequency(0.002)
+        .set_octaves(6)
         .set_persistence(0.5);
 
     // Erosion: Controls the roughness/flatness
-    let erosion = Fbm::<Perlin>::new(seed.wrapping_add(1))
-        .set_frequency(0.005)
+    let erosion = Fbm::<OpenSimplex>::new(seed.wrapping_add(1))
+        .set_frequency(0.01)
         .set_octaves(6)
         .set_persistence(0.5);
 
     // Peaks & Valleys: Adds local detail (mountains, hills)
-    let peaks_valleys = RidgedMulti::<Perlin>::new(seed.wrapping_add(2))
+    let peaks_valleys = RidgedMulti::<OpenSimplex>::new(seed.wrapping_add(2))
         .set_frequency(0.01)
         .set_octaves(8);
 
     // Temperature: Controls biome temperature
-    let temperature = Fbm::<Perlin>::new(seed.wrapping_add(100))
-        .set_frequency(0.0004)
-        .set_octaves(2);
+    let temperature = Fbm::<OpenSimplex>::new(seed.wrapping_add(100))
+        .set_frequency(0.01)
+        .set_octaves(4);
 
     // Humidity: Controls biome humidity
-    let humidity = Fbm::<Perlin>::new(seed.wrapping_add(200))
-        .set_frequency(0.0004)
-        .set_octaves(2);
+    let humidity = Fbm::<OpenSimplex>::new(seed.wrapping_add(200))
+        .set_frequency(0.01)
+        .set_octaves(4);
 
     // Rarity: Controls rare biome variants
-    let rarity = Fbm::<Perlin>::new(seed.wrapping_add(300))
-        .set_frequency(0.002)
-        .set_octaves(2);
+    let rarity = Fbm::<OpenSimplex>::new(seed.wrapping_add(300))
+        .set_frequency(0.01)
+        .set_octaves(4);
 
     let mut altitude_map = vec![0i32; (TERRAIN_CHUNK_SIZE * TERRAIN_CHUNK_SIZE) as usize];
     let mut biome_map = vec![0u8; (TERRAIN_CHUNK_SIZE * TERRAIN_CHUNK_SIZE) as usize];
@@ -63,12 +69,20 @@ pub fn generate_altitude_map(
                 .as_vec2()
                 * VOXEL_SIZE;
 
-            let raw_c = continentalness.get([world_xz.x as f64, world_xz.y as f64]);
-            let raw_e = erosion.get([world_xz.x as f64, world_xz.y as f64]);
-            let raw_pv = peaks_valleys.get([world_xz.x as f64, world_xz.y as f64]);
-            let raw_temp = temperature.get([world_xz.x as f64, world_xz.y as f64]);
-            let raw_hum = humidity.get([world_xz.x as f64, world_xz.y as f64]);
-            let raw_rarity = rarity.get([world_xz.x as f64, world_xz.y as f64]);
+            // Domain Warping
+            let warp_strength = 40.0;
+            let wx = domain_warp.get([world_xz.x as f64, world_xz.y as f64]) * warp_strength;
+            let wz = domain_warp.get([world_xz.x as f64 + 500.0, world_xz.y as f64 + 500.0]) * warp_strength;
+
+            let warped_x = world_xz.x as f64 + wx;
+            let warped_z = world_xz.y as f64 + wz;
+
+            let raw_c = continentalness.get([warped_x, warped_z]);
+            let raw_e = erosion.get([warped_x, warped_z]);
+            let raw_pv = peaks_valleys.get([warped_x, warped_z]);
+            let raw_temp = temperature.get([warped_x, warped_z]);
+            let raw_hum = humidity.get([warped_x, warped_z]);
+            let raw_rarity = rarity.get([warped_x, warped_z]);
 
             // 相互作用1: 気温が侵食に影響を与える
             // 気温が高いほど風化が進みやすく、地形が平坦になりやすいと仮定します。
@@ -83,19 +97,19 @@ pub fn generate_altitude_map(
             // Continentalness (大陸性) による基本高度の計算
             // 海、海岸、平野、山岳といった大まかな地形を決定します。
             let (min_c, max_c, min_h, max_h) = if raw_c < -0.4 {
-                (-1.0, -0.4, -40.0, -15.0) // 深海
+                (-1.0, -0.4, -60.0, -15.0) // 深海
             } else if raw_c < -0.1 {
-                (-0.4, -0.1, -15.0, -3.0)  // 浅瀬
+                (-0.4, -0.1, -15.0, -5.0)  // 浅瀬
             } else if raw_c < 0.1 {
-                (-0.1, 0.1, -3.0, 3.0)     // 海岸
+                (-0.1, 0.1, -5.0, 5.0)     // 海岸
             } else if raw_c < 0.2 {
-                (0.1, 0.2, 3.0, 18.0)      // 平野
+                (0.1, 0.2, 5.0, 20.0)      // 平野
             } else if raw_c < 0.3 {
-                (0.2, 0.3, 18.0, 30.0)     // 丘陵
+                (0.2, 0.3, 20.0, 60.0)     // 丘陵
             } else if raw_c < 0.4 {
-                (0.3, 0.4, 30.0, 50.0)     // 高原
+                (0.3, 0.4, 60.0, 100.0)     // 高原
             } else {
-                (0.4, 1.0, 50.0, 150.0)    // 山岳
+                (0.4, 1.0, 100.0, 800.0)    // 山岳
             };
 
             let mut height = spline_interp(raw_c, min_c, max_c, min_h, max_h);
@@ -117,7 +131,7 @@ pub fn generate_altitude_map(
             // Peaks & Valleys (山谷) による詳細な起伏の追加
             // 侵食係数を掛けることで、平坦な場所では起伏を抑えます。
             // また、大陸性が高い（内陸）ほど山が高くなるように補正をかけます。
-            height += pv_modified * erosion_factor * spline_interp(raw_c, -0.2, 1.0, 5.0, 100.0);
+            height += pv_modified * erosion_factor * spline_interp(raw_c, 0.0, 1.0, 3.0, 300.0);
             
             let altitude = height as i32;
             altitude_map[AltitudeMapShape {}.linearize([x, z]) as usize] = altitude;
