@@ -23,8 +23,8 @@ pub fn generate_altitude_map(
     // --- Noise Generation Logic ---
     // Domain Warping: Used to distort the coordinate system
     let domain_warp = Fbm::<OpenSimplex>::new(seed.wrapping_add(999))
-        .set_frequency(0.005)
-        .set_octaves(3)
+        .set_frequency(0.02)
+        .set_octaves(4)
         .set_persistence(0.5);
 
     // Continentalness: Controls the general height (Ocean, Coast, Land, Inland)
@@ -46,17 +46,16 @@ pub fn generate_altitude_map(
 
     // Temperature: Controls biome temperature
     let temperature = Fbm::<OpenSimplex>::new(seed.wrapping_add(100))
-        .set_frequency(0.01)
+        .set_frequency(0.0015)
         .set_octaves(4);
-
     // Humidity: Controls biome humidity
     let humidity = Fbm::<OpenSimplex>::new(seed.wrapping_add(200))
-        .set_frequency(0.01)
+        .set_frequency(0.0015)
         .set_octaves(4);
 
     // Rarity: Controls rare biome variants
     let rarity = Fbm::<OpenSimplex>::new(seed.wrapping_add(300))
-        .set_frequency(0.01)
+        .set_frequency(0.001)
         .set_octaves(4);
 
     let mut altitude_map = vec![0i32; (TERRAIN_CHUNK_SIZE * TERRAIN_CHUNK_SIZE) as usize];
@@ -70,7 +69,7 @@ pub fn generate_altitude_map(
                 * VOXEL_SIZE;
 
             // Domain Warping
-            let warp_strength = 40.0;
+            let warp_strength = 50.0;
             let wx = domain_warp.get([world_xz.x as f64, world_xz.y as f64]) * warp_strength;
             let wz = domain_warp.get([world_xz.x as f64 + 500.0, world_xz.y as f64 + 500.0]) * warp_strength;
 
@@ -96,20 +95,20 @@ pub fn generate_altitude_map(
 
             // Continentalness (大陸性) による基本高度の計算
             // 海、海岸、平野、山岳といった大まかな地形を決定します。
-            let (min_c, max_c, min_h, max_h) = if raw_c < -0.4 {
-                (-1.0, -0.4, -60.0, -15.0) // 深海
+            let (min_c, max_c, min_h, max_h) = if raw_c < -0.3 {
+                (-1.0, -0.3, -100.0, -15.0) // 深海
             } else if raw_c < -0.1 {
-                (-0.4, -0.1, -15.0, -5.0)  // 浅瀬
+                (-0.3, -0.1, -15.0, -5.0)  // 浅瀬
             } else if raw_c < 0.1 {
                 (-0.1, 0.1, -5.0, 5.0)     // 海岸
             } else if raw_c < 0.2 {
                 (0.1, 0.2, 5.0, 20.0)      // 平野
+            } else if raw_c < 0.25 {
+                (0.2, 0.25, 20.0, 60.0)     // 丘陵
             } else if raw_c < 0.3 {
-                (0.2, 0.3, 20.0, 60.0)     // 丘陵
-            } else if raw_c < 0.4 {
-                (0.3, 0.4, 60.0, 100.0)     // 高原
+                (0.25, 0.3, 60.0, 80.0)     // 高原
             } else {
-                (0.4, 1.0, 100.0, 800.0)    // 山岳
+                (0.3, 1.0, 80.0, 1000.0)    // 山岳
             };
 
             let mut height = spline_interp(raw_c, min_c, max_c, min_h, max_h);
@@ -140,23 +139,10 @@ pub fn generate_altitude_map(
             // 標高が高いほど気温は下がります。
             let mut temp_final = raw_temp - (altitude - 20) as f64 * 0.005;
 
-            // 相互作用4: 大陸性が気温に影響を与える
-            // 内陸部（continentalnessが高い）ほど気温の変動が激しい、あるいは極端になりやすいですが、
-            // ここでは単純に内陸ほど少し気温が高くなりやすい（夏のイメージ）等の補正を加えます。
-            temp_final += raw_c * 0.05;
-
             // 相互作用5: 気温が湿度に影響を与える
             // 気温が高いと飽和水蒸気量が増えるため、相対的な湿度の感じ方が変わりますが、
             // ここでは「暖かい空気は水分を多く含む」として湿度を少し上げます。
             let mut humidity_final = raw_hum + temp_final * 0.1;
-
-            // 相互作用6: 高度が湿度に影響を与える
-            // 山岳地帯では雲が発生しやすく湿度が上がることがあります。
-            humidity_final += (altitude as f64) * 0.0005;
-
-            // 相互作用7: 侵食度が湿度に影響を与える
-            // 侵食が進んだ平坦な土地（盆地など）は湿気が溜まりやすいと仮定します。
-            humidity_final += erosion_modified * 0.1;
 
             let biome = config.resolve_biome(temp_final, humidity_final, raw_rarity, altitude);
             biome_map[AltitudeMapShape {}.linearize([x, z]) as usize] = biome.id;

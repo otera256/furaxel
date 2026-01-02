@@ -59,7 +59,7 @@ define_biomes! {
         name: "Plains",
         surface: Voxel::GRASS,
         sub_surface: Voxel::DIRT,
-        features: vec![(Arc::new(BigOakTreeFeature), 0.0003)]
+        features: vec![(Arc::new(BigOakTreeFeature), 0.0001)]
     },
     DESERT = 1 => {
         name: "Desert",
@@ -90,8 +90,8 @@ define_biomes! {
         surface: Voxel::GRASS,
         sub_surface: Voxel::DIRT,
         features: vec![
-            (Arc::new(OakTreeFeature), 0.01),
-            (Arc::new(FlowerFeature), 0.01)
+            (Arc::new(OakTreeFeature), 0.02),
+            (Arc::new(FlowerFeature), 0.02)
         ]
     },
     BIRCH_FOREST = 6 => {
@@ -99,15 +99,15 @@ define_biomes! {
         surface: Voxel::GRASS,
         sub_surface: Voxel::DIRT,
         features: vec![
-            (Arc::new(BirchTreeFeature), 0.01),
-            (Arc::new(FlowerFeature), 0.01)
+            (Arc::new(BirchTreeFeature), 0.02),
+            (Arc::new(FlowerFeature), 0.02)
         ]
     },
     FLOWER_FIELD = 7 => {
         name: "Flower Field",
         surface: Voxel::GRASS,
         sub_surface: Voxel::DIRT,
-        features: vec![(Arc::new(FlowerFeature), 0.1)]
+        features: vec![(Arc::new(FlowerFeature), 0.3)]
     },
     SNOW_FIELD = 8 => {
         name: "Snow Field",
@@ -126,8 +126,8 @@ define_biomes! {
         surface: Voxel::GRASS,
         sub_surface: Voxel::DIRT,
         features: vec![
-            (Arc::new(MegaJungleTreeFeature), 0.002),
-            (Arc::new(JungleTreeFeature), 0.02),
+            (Arc::new(MegaJungleTreeFeature), 0.005),
+            (Arc::new(JungleTreeFeature), 0.03),
             (Arc::new(JungleBushFeature), 0.05),
             (Arc::new(FlowerFeature), 0.01)
         ]
@@ -200,39 +200,39 @@ impl BiomeRegistry {
     }
 
     pub fn resolve_biome(&self, temp: f64, humidity: f64, rarity: f64, altitude: i32) -> Biome {
-        if altitude >= -3 && altitude < 0 && temp > -0.2 {
+        if altitude >= -3 && altitude < 0 && temp > -0.1 {
             return Biome::BEACH;
         } else if altitude < 0 {
-            if temp < -0.5 {
+            if temp < -0.3 {
                 return Biome::COLD_OCEAN;
             } else {
                 return Biome::OCEAN;
             }
-        } else if temp < -0.4 {
+        } else if temp < -0.3 {
             if humidity < 0.0 {
-                if rarity > 0.6 { return Biome::ICE_SPIKES; } else { return Biome::SNOW_FIELD; }
+                if rarity > 0.3 { return Biome::ICE_SPIKES; } else { return Biome::SNOW_FIELD; }
             } else {
                 return Biome::SNOW;
             }
-        } else if temp < 0.4 {
-            if humidity < -0.7 {
+        } else if temp < 0.2 {
+            if humidity < -0.3 {
                 return Biome::MOUNTAINS;
-            } else if humidity < -0.4 {
-                if rarity > 0.5 { return Biome::SUNFLOWER_PLAINS; } else { return Biome::PLAINS; }
+            } else if humidity < -0.1 {
+                if rarity > 0.3 { return Biome::SUNFLOWER_PLAINS; } else { return Biome::PLAINS; }
             } else if humidity < 0.0 {
                 return Biome::BIRCH_FOREST;
             } else if humidity < 0.3 {
-                if rarity > 0.4 { return Biome::FLOWER_FIELD; } else { return Biome::OAK_FOREST; }
+                if rarity > 0.3 { return Biome::FLOWER_FIELD; } else { return Biome::OAK_FOREST; }
             } else {
                 return Biome::OAK_FOREST;
             }
         } else {
-            if humidity < -0.2 {
-                if rarity > 0.5 { return Biome::RED_DESERT; } else { return Biome::DESERT; }
-            } else if humidity < 0.3 {
+            if humidity < -0.15 {
+                if rarity > 0.3 { return Biome::RED_DESERT; } else { return Biome::DESERT; }
+            } else if humidity < 0.15 {
                 return Biome::SAVANNA;
             } else {
-                if rarity > 0.5 { return Biome::BAMBOO_JUNGLE; } else { return Biome::JUNGLE; }
+                if rarity > 0.3 { return Biome::BAMBOO_JUNGLE; } else { return Biome::JUNGLE; }
             }
         }
     }
