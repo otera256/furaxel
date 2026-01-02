@@ -137,12 +137,12 @@ pub fn generate_altitude_map(
 
             // 相互作用3: 高度が気温に影響を与える (気温減率)
             // 標高が高いほど気温は下がります。
-            let mut temp_final = raw_temp - (altitude - 20) as f64 * 0.005;
+            let temp_final = raw_temp - (altitude - 20) as f64 * 0.005;
 
-            // 相互作用5: 気温が湿度に影響を与える
+            // 相互作用4: 気温が湿度に影響を与える
             // 気温が高いと飽和水蒸気量が増えるため、相対的な湿度の感じ方が変わりますが、
             // ここでは「暖かい空気は水分を多く含む」として湿度を少し上げます。
-            let mut humidity_final = raw_hum + temp_final * 0.1;
+            let humidity_final = raw_hum + temp_final * 0.1;
 
             let biome = config.resolve_biome(temp_final, humidity_final, raw_rarity, altitude);
             biome_map[AltitudeMapShape {}.linearize([x, z]) as usize] = biome.id;

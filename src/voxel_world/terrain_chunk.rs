@@ -3,7 +3,7 @@ use block_mesh::ndshape::ConstShape3u32;
 
 use crate::voxel_world::{chunk::Chunk, voxel::{VOXEL_SIZE, Voxel}};
 
-pub const TERRAIN_CHUNK_SIZE: u32 = 32;
+pub const TERRAIN_CHUNK_SIZE: u32 = 64;
 pub const PADDED_TERRAIN_CHUNK_SIZE: u32 = TERRAIN_CHUNK_SIZE + 2;
 pub const TERRAIN_CHUNK_LENGTH: f32 = TERRAIN_CHUNK_SIZE as f32 * VOXEL_SIZE;
 

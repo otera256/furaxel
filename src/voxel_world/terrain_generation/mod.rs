@@ -86,7 +86,7 @@ fn queue_altitude_tasks(
     for (entity, terrain_chunk) in target_chunks
         .iter()
         .k_smallest_by_key(MAX_COMPUTE_TERRAIN_TASKS_PER_FRAME, |(_, chunk)| {
-            (chunk.position - render_distance_params.player_chunk).length_squared()
+            (chunk.position - render_distance_params.player_chunk).xz().length_squared()
         })
     {
         let chunk_pos = terrain_chunk.position;
