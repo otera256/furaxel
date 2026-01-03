@@ -22,6 +22,7 @@ impl Plugin for TerrainGenerationPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(TerrainGenerationStorage::default())
+            .add_message::<ChunkGeneratedEvent>()
             .add_systems(Startup, setup_terrain_generation)
             .add_systems(Update, (
                 queue_altitude_tasks,
