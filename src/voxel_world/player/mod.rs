@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::{core_pipeline::prepass::DepthPrepass, input::mouse::AccumulatedMouseMotion, pbr::Atmosphere, prelude::*};
+use bevy::{core_pipeline::prepass::DepthPrepass, input::mouse::AccumulatedMouseMotion, pbr::Atmosphere, prelude::*, window::{CursorGrabMode, CursorOptions, PrimaryWindow}};
 
 use crate::voxel_world::core::{RenderDistanceParams, terrain_chunk::TERRAIN_CHUNK_LENGTH};
 
@@ -15,6 +15,7 @@ impl Plugin for VoxelPlayerPlugin {
             .add_systems(Update, (
                 player_look,
                 player_move,
+                toggle_grab_cursor,
             ));
     }
 }
@@ -78,8 +79,13 @@ pub fn update_player_chunk(
 pub fn player_look(
     mut transform: Single<&mut Transform, With<Player>>,
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
+    primary_cursor_options: Single<&CursorOptions, With<PrimaryWindow>>,
     settings: Res<PlayerSettings>,
 ) {
+    // カーソルが解放されている場合は視点移動しない
+    if primary_cursor_options.grab_mode == CursorGrabMode::None {
+        return;
+    }
     let delta = accumulated_mouse_motion.delta;
 
     if delta == Vec2::ZERO {
@@ -101,9 +107,14 @@ pub fn player_look(
 pub fn player_move(
     mut transform: Single<&mut Transform, With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
+    primary_cursor_options: Single<&CursorOptions, With<PrimaryWindow>>,
     time: Res<Time>,
     settings: Res<PlayerSettings>,
 ) {
+    // カーソルが解放されている場合は移動しない
+    if primary_cursor_options.grab_mode == CursorGrabMode::None {
+        return;
+    }
     let mut velocity = Vec3::ZERO;
     
     // 水平移動のための前方・右方ベクトル（Y成分を無視）
@@ -142,4 +153,23 @@ pub fn player_move(
     };
 
     transform.translation = transform.translation + velocity * speed * time.delta_secs();
+}
+
+fn toggle_grab_cursor(
+    mut primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    if !keys.just_pressed(KeyCode::Escape) {
+        return;
+    }
+    match primary_cursor_options.grab_mode {
+        CursorGrabMode::None => {
+            primary_cursor_options.grab_mode = CursorGrabMode::Confined;
+            primary_cursor_options.visible = false;
+        },
+        _ => {
+            primary_cursor_options.grab_mode = CursorGrabMode::None;
+            primary_cursor_options.visible = true;
+        }
+    }
 }

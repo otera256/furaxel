@@ -2,10 +2,6 @@ pub mod voxel;
 pub mod chunk;
 pub mod terrain_chunk;
 
-pub use voxel::*;
-pub use chunk::*;
-pub use terrain_chunk::*;
-
 use bevy::{prelude::*, platform::collections::HashMap};
 use self::terrain_chunk::TERRAIN_CHUNK_SIZE;
 
