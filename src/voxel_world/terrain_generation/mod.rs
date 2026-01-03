@@ -1,15 +1,15 @@
 pub mod biomes;
-mod storage;
+pub mod storage;
 mod feature;
 pub mod generation;
 
 use bevy::{
     ecs::world::CommandQueue, prelude::*, tasks::{AsyncComputeTaskPool, Task, futures::check_ready}
 };
-use itertools::{Itertools, iproduct};
+use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
-    chunk_map::ChunkMap, chunking::{ChunkEntities, RenderDistanceParams, TerrainChunk}, rendering::meshing::{MeshQueued, NeedMeshUpdate}, terrain_generation::storage::TerrainGenerationStorage
+    chunk_map::ChunkMap, chunking::{RenderDistanceParams, TerrainChunk}, terrain_generation::storage::TerrainGenerationStorage
 };
 use self::biomes::BiomeRegistry;
 
@@ -22,7 +22,6 @@ impl Plugin for TerrainGenerationPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(TerrainGenerationStorage::default())
-            .add_message::<ChunkGeneratedEvent>()
             .add_systems(Startup, setup_terrain_generation)
             .add_systems(Update, (
                 queue_altitude_tasks,
@@ -31,7 +30,6 @@ impl Plugin for TerrainGenerationPlugin {
                 handle_base_terrain_tasks,
                 queue_feature_tasks,
                 handle_feature_tasks,
-                handle_chunk_generated_events,
             ))
             ;
     }
@@ -272,6 +270,7 @@ fn handle_feature_tasks(
     mut commands: Commands,
     mut tasks: Query<(Entity, &mut ComputingFeatures, &TerrainChunk)>,
     mut event_writer: MessageWriter<ChunkGeneratedEvent>,
+    mut storage: ResMut<TerrainGenerationStorage>,
 ) {
     for (entity, mut task, terrain_chunk) in &mut tasks {
         if let Some(mut command_queue) = check_ready(&mut task.0) {
@@ -280,44 +279,7 @@ fn handle_feature_tasks(
                 .remove::<ComputingFeatures>();
             
             event_writer.write(ChunkGeneratedEvent(terrain_chunk.position));
-        }
-    }
-}
-
-fn handle_chunk_generated_events(
-    mut commands: Commands,
-    mut events: MessageReader<ChunkGeneratedEvent>,
-    mut storage: ResMut<TerrainGenerationStorage>,
-    chunk_entities: Res<ChunkEntities>,
-    mesh_queued_query: Query<&MeshQueued>,
-) {
-    for event in events.read() {
-        let chunk_pos = event.0;
-        storage.fully_generated.insert(chunk_pos);
-
-        let mut candidates = Vec::new();
-        candidates.push(chunk_pos);
-        for (dx, dy, dz) in itertools::iproduct!(-1..=1, -1..=1, -1..=1) {
-            if dx == 0 && dy == 0 && dz == 0 { continue; }
-            candidates.push(chunk_pos + IVec3::new(dx, dy, dz));
-        }
-
-        for pos in candidates {
-            if storage.fully_generated.contains(&pos) {
-                if let Some(entity) = chunk_entities.entities.get(&pos) {
-                    let has_mesh = mesh_queued_query.get(*entity).is_ok();
-
-                    let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
-                        .all(|(dx, dy, dz)| {
-                            let neighbor_pos = pos + IVec3::new(dx, dy, dz);
-                            storage.fully_generated.contains(&neighbor_pos)
-                        });
-
-                    if !has_mesh && all_neighbors_ready {
-                        commands.entity(*entity).insert(NeedMeshUpdate);
-                    }
-                }
-            }
+            storage.fully_generated.insert(terrain_chunk.position);
         }
     }
 }

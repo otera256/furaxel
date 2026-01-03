@@ -3,8 +3,13 @@ pub mod material;
 pub mod water;
 
 use bevy::prelude::*;
+use itertools::iproduct;
 
-use crate::voxel_world::rendering::{material::*, meshing::*, water::WaterMaterial};
+use crate::voxel_world::{
+    chunking::ChunkEntities,
+    terrain_generation::{ChunkGeneratedEvent, storage::TerrainGenerationStorage},
+    rendering::{material::*, meshing::*, water::WaterMaterial},
+};
 
 pub struct VoxelRenderingPlugin;
 
@@ -18,6 +23,44 @@ impl Plugin for VoxelRenderingPlugin {
                 queue_mesh_tasks,
                 handle_mesh_tasks,
                 immediate_mesh_update,
+                trigger_mesh_update,
             ));
+    }
+}
+
+fn trigger_mesh_update(
+    mut commands: Commands,
+    mut events: MessageReader<ChunkGeneratedEvent>,
+    storage: Res<TerrainGenerationStorage>,
+    chunk_entities: Res<ChunkEntities>,
+    mesh_queued_query: Query<&MeshQueued>,
+) {
+    for event in events.read() {
+        let chunk_pos = event.0;
+        
+        let mut candidates = Vec::new();
+        candidates.push(chunk_pos);
+        for (dx, dy, dz) in iproduct!(-1..=1, -1..=1, -1..=1) {
+            if dx == 0 && dy == 0 && dz == 0 { continue; }
+            candidates.push(chunk_pos + IVec3::new(dx, dy, dz));
+        }
+
+        for pos in candidates {
+            if storage.fully_generated.contains(&pos) {
+                if let Some(entity) = chunk_entities.entities.get(&pos) {
+                    let has_mesh = mesh_queued_query.get(*entity).is_ok();
+
+                    let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
+                        .all(|(dx, dy, dz)| {
+                            let neighbor_pos = pos + IVec3::new(dx, dy, dz);
+                            storage.fully_generated.contains(&neighbor_pos)
+                        });
+
+                    if !has_mesh && all_neighbors_ready {
+                        commands.entity(*entity).insert(NeedMeshUpdate);
+                    }
+                }
+            }
+        }
     }
 }
