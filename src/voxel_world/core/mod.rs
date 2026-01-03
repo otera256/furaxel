@@ -2,6 +2,7 @@ pub mod voxel;
 pub mod chunk;
 pub mod terrain_chunk;
 pub mod coordinates;
+pub mod chunk_range;
 pub mod events;
 pub mod components;
 

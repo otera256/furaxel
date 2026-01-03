@@ -10,7 +10,7 @@ use bevy::{
 use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
-    core::{terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
+    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
     pipelines::cpu_noise::storage::TerrainGenerationStorage,
     storage::ChunkMap,
 };
@@ -100,9 +100,6 @@ fn queue_altitude_tasks(
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
     let seed = world_gen_config.seed;
-    let player_chunk = render_distance_params.player_chunk;
-    let h = render_distance_params.horizontal;
-    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks
         .iter()
@@ -112,9 +109,7 @@ fn queue_altitude_tasks(
     {
         let chunk_pos = terrain_chunk.position;
         
-        // Check if chunk is too far
-        let offset = chunk_pos - player_chunk;
-        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+        if !is_within_active_chunk_range(chunk_pos, &render_distance_params) {
             continue;
         }
 
@@ -178,16 +173,11 @@ fn queue_base_terrain_tasks(
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
-    let player_chunk = render_distance_params.player_chunk;
-    let h = render_distance_params.horizontal;
-    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks.iter() {
         let chunk_pos = terrain_chunk.position;
         
-        // Check if chunk is too far (same logic as update_chunk_entities removal)
-        let offset = chunk_pos - player_chunk;
-        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+        if !is_within_active_chunk_range(chunk_pos, &render_distance_params) {
             continue;
         }
 
@@ -246,16 +236,11 @@ fn queue_feature_tasks(
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
     let seed = world_gen_config.seed;
-    let player_chunk = render_distance_params.player_chunk;
-    let h = render_distance_params.horizontal;
-    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks.iter() {
         let chunk_pos = terrain_chunk.position;
         
-        // Check if chunk is too far
-        let offset = chunk_pos - player_chunk;
-        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+        if !is_within_active_chunk_range(chunk_pos, &render_distance_params) {
             continue;
         }
 

@@ -3,6 +3,7 @@ use itertools::iproduct;
 
 use crate::voxel_world::{
     core::{
+        chunk_range::{is_within_active_chunk_range, should_unload_chunk},
         coordinates::TERRAIN_CHUNK_LENGTH,
         ChunkEntities, RenderDistanceParams, TerrainChunk
     },
@@ -14,16 +15,9 @@ pub fn unload_distant_chunks(
     mut chunk_map: ResMut<ChunkMap>,
     render_distance_params: Res<RenderDistanceParams>,
 ) {
-    let player_chunk = render_distance_params.player_chunk;
-    // 描画距離の1.5倍離れたら削除
-    let unload_distance = (render_distance_params.horizontal as f32 * 1.5) as i32;
-    let unload_distance_sq = unload_distance * unload_distance;
-
     let mut to_remove = Vec::new();
     for chunk_pos in chunk_map.chunks.keys() {
-        let offset = *chunk_pos - player_chunk;
-        // 水平距離で判定
-        if offset.x * offset.x + offset.z * offset.z > unload_distance_sq {
+        if should_unload_chunk(*chunk_pos, &render_distance_params) {
             to_remove.push(*chunk_pos);
         }
     }
@@ -58,8 +52,7 @@ pub fn update_chunk_entities(
     // 1チャンク移動するだけで削除と追加を繰り返すのは非効率なので,
     // 削除対象は余裕をもって判定する
     for chunk_pos in chunk_entities.entities.keys() {
-        let offset = *chunk_pos - player_chunk;
-        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+        if !is_within_active_chunk_range(*chunk_pos, &render_distance_params) {
             to_remove.push(*chunk_pos);
         }
     }
