@@ -5,7 +5,7 @@ use bevy::{ecs::resource::Resource, math::{IVec3, UVec3}, platform::collections:
 use block_mesh::ndshape::ConstShape;
 use itertools::iproduct;
 
-use crate::voxel_world::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunkData}, voxel::Voxel};
+use crate::voxel_world::core::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TERRAIN_CHUNK_SIZE, TerrainChunkData}, voxel::Voxel};
 
 #[derive(Debug, Resource, Default)]
 pub struct ChunkMap {

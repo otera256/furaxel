@@ -1,7 +1,7 @@
 use bevy::{asset::RenderAssetUsages, ecs::relationship::RelatedSpawnerCommands, image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor}, light::NotShadowCaster, mesh::{Indices, PrimitiveTopology}, platform::collections::HashMap, prelude::*};
 use block_mesh::{Axis, GreedyQuadsBuffer, MergeVoxel, OrientedBlockFace, RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, VoxelVisibility, greedy_quads, ndshape::Shape};
 use itertools::Itertools;
-use crate::voxel_world::{core::{chunk::Chunk, voxel::{self, VOXEL_SIZE, VoxelMaterial}}, rendering::water::WaterExtension};
+use crate::voxel_world::{core::{chunk::Chunk, voxel::{self, VOXEL_SIZE, VoxelMaterial}}, pipelines::rendering::water::WaterExtension};
 use super::water::WaterMaterial;
 
 #[derive(Component)]

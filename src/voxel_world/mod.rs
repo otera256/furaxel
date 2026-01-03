@@ -1,21 +1,17 @@
-pub mod voxel;
-pub mod chunk;
-pub mod terrain_chunk;
-pub mod chunk_map;
+pub mod core;
+pub mod storage;
+pub mod pipelines;
 pub mod chunking;
 pub mod player;
-pub mod terrain_generation;
-pub mod rendering;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};
 use bevy::time::common_conditions::on_timer;
 use std::time::Duration;
+use core::{RenderDistanceParams, ChunkEntities};
+use storage::ChunkMap;
 use chunking::*;
-use chunk_map::*;
 use player::*;
-use terrain_generation::*;
-
-use crate::voxel_world::rendering::VoxelRenderingPlugin;
+use pipelines::{terrain_generation::*, rendering::VoxelRenderingPlugin};
 pub struct VoxelWorldPlugin;
 
 impl Plugin for VoxelWorldPlugin {

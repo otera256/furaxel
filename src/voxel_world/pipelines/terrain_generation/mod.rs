@@ -11,7 +11,7 @@ use std::sync::Arc;
 use crate::voxel_world::{
     core::{RenderDistanceParams, TerrainChunk, ChunkGeneratedEvent},
     storage::ChunkMap,
-    terrain_generation::storage::TerrainGenerationStorage
+    pipelines::terrain_generation::storage::TerrainGenerationStorage
 };
 use self::biomes::BiomeRegistry;
 

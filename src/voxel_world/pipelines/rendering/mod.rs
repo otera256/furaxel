@@ -7,8 +7,10 @@ use itertools::iproduct;
 
 use crate::voxel_world::{
     core::{ChunkEntities, ChunkGeneratedEvent},
-    terrain_generation::storage::TerrainGenerationStorage,
-    rendering::{material::*, meshing::*, water::WaterMaterial},
+    pipelines::{
+        terrain_generation::storage::TerrainGenerationStorage,
+        rendering::{material::*, meshing::*, water::WaterMaterial},
+    }
 };
 
 pub struct VoxelRenderingPlugin;

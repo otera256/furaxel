@@ -1,7 +1,7 @@
 use bevy::math::{IVec3, UVec3, Vec3};
 use block_mesh::ndshape::ConstShape3u32;
 
-use crate::voxel_world::{chunk::Chunk, voxel::{VOXEL_SIZE, Voxel}};
+use crate::voxel_world::core::{chunk::Chunk, voxel::{VOXEL_SIZE, Voxel}};
 
 pub const TERRAIN_CHUNK_SIZE: u32 = 64;
 pub const PADDED_TERRAIN_CHUNK_SIZE: u32 = TERRAIN_CHUNK_SIZE + 2;
@@ -13,7 +13,7 @@ type TerrainChunkShape = ConstShape3u32<
     TERRAIN_CHUNK_SIZE,
 >;
 
-pub(super) type PaddedTerrainChunkShape = ConstShape3u32<
+pub type PaddedTerrainChunkShape = ConstShape3u32<
     PADDED_TERRAIN_CHUNK_SIZE,
     PADDED_TERRAIN_CHUNK_SIZE,
     PADDED_TERRAIN_CHUNK_SIZE,

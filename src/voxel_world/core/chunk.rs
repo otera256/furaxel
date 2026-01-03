@@ -3,7 +3,7 @@ use std::ops::Range;
 use bevy::math::UVec3;
 use block_mesh::ndshape::Shape;
 use itertools::iproduct;
-use crate::voxel_world::voxel::Voxel;
+use crate::voxel_world::core::voxel::Voxel;
 
 #[derive(Debug, Clone)]
 pub struct Chunk<S: Shape<3, Coord = u32>> {
