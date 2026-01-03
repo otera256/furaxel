@@ -77,6 +77,7 @@ pub fn update_chunk_entities(
     }
     for chunk_pos in to_remove {
         if let Some(entity) = chunk_entities.entities.remove(&chunk_pos) {
+            commands.entity(entity).despawn_children();
             commands.entity(entity).despawn();
         }
     }

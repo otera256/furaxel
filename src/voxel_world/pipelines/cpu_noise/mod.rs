@@ -4,14 +4,15 @@ mod feature;
 pub mod generation;
 
 use bevy::{
-    ecs::world::CommandQueue, prelude::*, tasks::{AsyncComputeTaskPool, Task, futures::check_ready}
+    prelude::*,
+    tasks::{futures::check_ready, AsyncComputeTaskPool, Task},
 };
 use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
-    core::{RenderDistanceParams, TerrainChunk, ChunkGeneratedEvent},
+    core::{terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
+    pipelines::cpu_noise::storage::TerrainGenerationStorage,
     storage::ChunkMap,
-    pipelines::cpu_noise::storage::TerrainGenerationStorage
 };
 use self::biomes::BiomeRegistry;
 
@@ -55,19 +56,37 @@ fn setup_terrain_generation(mut commands: Commands) {
 pub struct WaitForTerrainGeneration;
 
 #[derive(Component, Debug)]
-struct ComputingAltitude(Task<CommandQueue>);
+struct ComputingAltitude(Task<AltitudeTaskResult>);
 
 #[derive(Component)]
 struct WaitForBaseTerrain;
 
 #[derive(Component, Debug)]
-struct ComputingBaseTerrain(Task<CommandQueue>);
+struct ComputingBaseTerrain(Task<BaseTerrainTaskResult>);
 
 #[derive(Component, Debug)]
 struct WaitForNeighbors;
 
 #[derive(Component, Debug)]
-struct ComputingFeatures(Task<CommandQueue>);
+struct ComputingFeatures(Task<FeaturesTaskResult>);
+
+#[derive(Debug)]
+struct AltitudeTaskResult {
+    chunk_xz: IVec2,
+    altitude_map: Arc<[i32]>,
+    biome_map: Arc<[u8]>,
+}
+
+#[derive(Debug)]
+struct BaseTerrainTaskResult {
+    chunk_pos: IVec3,
+    chunk_data: TerrainChunkData,
+}
+
+#[derive(Debug)]
+struct FeaturesTaskResult {
+    changes: Vec<(IVec3, Voxel)>,
+}
 
 const MAX_COMPUTE_TERRAIN_TASKS_PER_FRAME: usize = 10;
 
@@ -103,30 +122,30 @@ fn queue_altitude_tasks(
 
         if storage.altitude_maps.contains_key(&chunk_xz) {
             // Already computed, skip to base terrain
-            commands.entity(entity)
-                .remove::<WaitForTerrainGeneration>()
-                .insert(WaitForBaseTerrain);
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<WaitForTerrainGeneration>();
+                    entity_world.insert(WaitForBaseTerrain);
+                }
+            });
         } else {
             // Need to compute altitude map
             let config = config.clone();
             let task = thread_pool.spawn(async move {
-                let mut command_queue = CommandQueue::default();
-
                 let (altitude_map, biome_map) = generation::generate_altitude_map(seed, chunk_xz, &config);
 
-                let altitude_arc: Arc<[i32]> = altitude_map.into();
-                let biome_arc: Arc<[u8]> = biome_map.into();
-                
-                command_queue.push(move |world: &mut World| {
-                    let mut storage = world.resource_mut::<TerrainGenerationStorage>();
-                    storage.altitude_maps.insert(chunk_xz, altitude_arc);
-                    storage.biome_maps.insert(chunk_xz, biome_arc);
-                });
-                command_queue
+                AltitudeTaskResult {
+                    chunk_xz,
+                    altitude_map: altitude_map.into(),
+                    biome_map: biome_map.into(),
+                }
             });
-            commands.entity(entity)
-                .remove::<WaitForTerrainGeneration>()
-                .insert(ComputingAltitude(task));
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<WaitForTerrainGeneration>();
+                    entity_world.insert(ComputingAltitude(task));
+                }
+            });
         }
     }
 }
@@ -134,13 +153,18 @@ fn queue_altitude_tasks(
 fn handle_altitude_tasks(
     mut commands: Commands,
     mut tasks: Query<(Entity, &mut ComputingAltitude)>,
+    mut storage: ResMut<TerrainGenerationStorage>,
 ) {
     for (entity, mut task) in &mut tasks {
-        if let Some(mut command_queue) = check_ready(&mut task.0) {
-            commands.append(&mut command_queue);
-            commands.entity(entity)
-                .remove::<ComputingAltitude>()
-                .insert(WaitForBaseTerrain);
+        if let Some(result) = check_ready(&mut task.0) {
+            storage.altitude_maps.insert(result.chunk_xz, result.altitude_map);
+            storage.biome_maps.insert(result.chunk_xz, result.biome_map);
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<ComputingAltitude>();
+                    entity_world.insert(WaitForBaseTerrain);
+                }
+            });
         }
     }
 }
@@ -169,25 +193,25 @@ fn queue_base_terrain_tasks(
 
         let chunk_xz = chunk_pos.xz();
 
-        if let Some(altitude_map) = storage.altitude_maps.get(&chunk_xz) {
+        if let (Some(altitude_map), Some(biome_map)) = (
+            storage.altitude_maps.get(&chunk_xz),
+            storage.biome_maps.get(&chunk_xz),
+        ) {
             let altitude_map = altitude_map.clone();
-            let biome_map = storage.biome_maps.get(&chunk_xz).unwrap().clone();
+            let biome_map = biome_map.clone();
             let config = config.clone();
 
             let task = thread_pool.spawn(async move {
-                let mut command_queue = CommandQueue::default();
-                
                 let chunk_data = generation::generate_base_terrain(chunk_pos, &altitude_map, &biome_map, &config);
 
-                command_queue.push(move |world: &mut World| {
-                    world.resource_mut::<ChunkMap>().insert(chunk_data);
-                    world.resource_mut::<TerrainGenerationStorage>().base_terrain_generated.insert(chunk_pos);
-                });
-                command_queue
+                BaseTerrainTaskResult { chunk_pos, chunk_data }
             });
-            commands.entity(entity)
-                .remove::<WaitForBaseTerrain>()
-                .insert(ComputingBaseTerrain(task));
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<WaitForBaseTerrain>();
+                    entity_world.insert(ComputingBaseTerrain(task));
+                }
+            });
         }
     }
 }
@@ -195,13 +219,19 @@ fn queue_base_terrain_tasks(
 fn handle_base_terrain_tasks(
     mut commands: Commands,
     mut tasks: Query<(Entity, &mut ComputingBaseTerrain)>,
+    mut chunk_map: ResMut<ChunkMap>,
+    mut storage: ResMut<TerrainGenerationStorage>,
 ) {
     for (entity, mut task) in &mut tasks {
-        if let Some(mut command_queue) = check_ready(&mut task.0) {
-            commands.append(&mut command_queue);
-            commands.entity(entity)
-                .remove::<ComputingBaseTerrain>()
-                .insert(WaitForNeighbors);
+        if let Some(result) = check_ready(&mut task.0) {
+            chunk_map.insert(result.chunk_data);
+            storage.base_terrain_generated.insert(result.chunk_pos);
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<ComputingBaseTerrain>();
+                    entity_world.insert(WaitForNeighbors);
+                }
+            });
         }
     }
 }
@@ -245,24 +275,29 @@ fn queue_feature_tasks(
         }
 
         if all_neighbors_ready {
+            let (Some(altitude_map), Some(biome_map)) = (
+                storage.altitude_maps.get(&chunk_xz),
+                storage.biome_maps.get(&chunk_xz),
+            ) else {
+                continue;
+            };
+
             let config = config.clone();
-            let altitude_map = storage.altitude_maps.get(&chunk_xz).unwrap().clone();
-            let biome_map = storage.biome_maps.get(&chunk_xz).unwrap().clone();
+            let altitude_map = altitude_map.clone();
+            let biome_map = biome_map.clone();
 
             let task = thread_pool.spawn(async move {
-                let mut command_queue = CommandQueue::default();
-                
                 let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &biome_map, &config);
 
-                command_queue.push(move |world: &mut World| {
-                    world.resource_mut::<ChunkMap>().set_bulk(changes);
-                });
-                command_queue
+                FeaturesTaskResult { changes }
             });
             
-            commands.entity(entity)
-                .remove::<WaitForNeighbors>()
-                .insert(ComputingFeatures(task));
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<WaitForNeighbors>();
+                    entity_world.insert(ComputingFeatures(task));
+                }
+            });
         }
     }
 }
@@ -272,15 +307,25 @@ fn handle_feature_tasks(
     mut tasks: Query<(Entity, &mut ComputingFeatures, &TerrainChunk)>,
     mut event_writer: MessageWriter<ChunkGeneratedEvent>,
     mut storage: ResMut<TerrainGenerationStorage>,
+    chunk_entities: Res<ChunkEntities>,
+    mut chunk_map: ResMut<ChunkMap>,
 ) {
     for (entity, mut task, terrain_chunk) in &mut tasks {
-        if let Some(mut command_queue) = check_ready(&mut task.0) {
-            commands.append(&mut command_queue);
-            commands.entity(entity)
-                .remove::<ComputingFeatures>();
-            
-            event_writer.write(ChunkGeneratedEvent(terrain_chunk.position));
-            storage.fully_generated.insert(terrain_chunk.position);
+        if let Some(result) = check_ready(&mut task.0) {
+            chunk_map.set_bulk(result.changes);
+
+            commands.queue(move |world: &mut World| {
+                if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                    entity_world.remove::<ComputingFeatures>();
+                }
+            });
+
+            // If the chunk has already been removed from the active set, don't
+            // emit an event or mark it as fully generated.
+            if chunk_entities.entities.contains_key(&terrain_chunk.position) {
+                event_writer.write(ChunkGeneratedEvent(terrain_chunk.position));
+                storage.fully_generated.insert(terrain_chunk.position);
+            }
         }
     }
 }

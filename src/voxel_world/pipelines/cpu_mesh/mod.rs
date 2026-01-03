@@ -31,6 +31,7 @@ impl Plugin for CpuMeshRenderingPlugin {
     }
 }
 
+// 他のチャンクの生成完了イベントを受け取り、メッシュ更新が必要なチャンクにNeedMeshUpdateコンポーネントを追加する
 fn trigger_mesh_update(
     mut commands: Commands,
     mut events: MessageReader<ChunkGeneratedEvent>,
@@ -60,7 +61,12 @@ fn trigger_mesh_update(
                         });
 
                     if !has_mesh && all_neighbors_ready {
-                        commands.entity(*entity).insert(NeedMeshUpdate);
+                        let entity = *entity;
+                        commands.queue(move |world: &mut World| {
+                            if let Ok(mut entity_world) = world.get_entity_mut(entity) {
+                                entity_world.insert(NeedMeshUpdate);
+                            }
+                        });
                     }
                 }
             }
