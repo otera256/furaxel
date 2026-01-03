@@ -1,46 +1,13 @@
 pub mod voxel;
 pub mod chunk;
 pub mod terrain_chunk;
+pub mod coordinates;
+pub mod events;
+pub mod components;
 
-use bevy::{prelude::*, platform::collections::HashMap};
-use self::terrain_chunk::TERRAIN_CHUNK_SIZE;
-
-#[derive(Component, Debug, Clone, Copy)]
-pub struct TerrainChunk {
-    pub position: IVec3,
-}
-
-#[allow(dead_code)]
-impl TerrainChunk {
-    pub fn chunk_origin(&self) -> IVec3 {
-        self.position * TERRAIN_CHUNK_SIZE as i32
-    }
-    pub fn chunk_origin_f32(&self) -> Vec3 {
-        self.chunk_origin().as_vec3() * (TERRAIN_CHUNK_SIZE as f32)
-    }
-}
-
-#[derive(Resource, Debug, Default)]
-pub struct ChunkEntities {
-    pub entities: HashMap<IVec3, Entity>,
-}
-
-#[derive(Resource, Debug, Clone, Copy)]
-pub struct RenderDistanceParams {
-    pub player_chunk: IVec3,
-    pub horizontal: i32,
-    pub vertical: i32,
-}
-
-impl Default for RenderDistanceParams {
-    fn default() -> Self {
-        Self {
-            player_chunk: IVec3::ZERO,
-            horizontal: 24,
-            vertical: 4,
-        }
-    }
-}
-
-#[derive(Event, Message, Debug, Clone, Copy)]
-pub struct ChunkGeneratedEvent(pub IVec3);
+pub use voxel::*;
+pub use chunk::*;
+pub use terrain_chunk::*;
+pub use coordinates::*;
+pub use events::*;
+pub use components::*;

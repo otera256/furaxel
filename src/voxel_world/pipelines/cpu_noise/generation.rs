@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use block_mesh::ndshape::{AbstractShape, ConstShape2u32};
 use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex, RidgedMulti};
 use crate::voxel_world::core::{
-    terrain_chunk::{TERRAIN_CHUNK_SIZE, TerrainChunkData},
-    voxel::{VOXEL_SIZE, Voxel},
+    terrain_chunk::TerrainChunkData,
+    coordinates::{TERRAIN_CHUNK_SIZE, VOXEL_SIZE},
+    voxel::Voxel,
 };
 use super::{biomes::BiomeRegistry, feature};
 

@@ -8,8 +8,8 @@ use itertools::iproduct;
 use crate::voxel_world::{
     core::{ChunkEntities, ChunkGeneratedEvent},
     pipelines::{
-        terrain_generation::storage::TerrainGenerationStorage,
-        rendering::{material::*, meshing::*, water::WaterMaterial},
+        cpu_noise::storage::TerrainGenerationStorage,
+        cpu_mesh::{material::*, meshing::*, water::WaterMaterial},
     }
 };
 

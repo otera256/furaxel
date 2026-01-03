@@ -3,11 +3,11 @@ use itertools::iproduct;
 
 use crate::voxel_world::{
     core::{
-        terrain_chunk::TERRAIN_CHUNK_LENGTH,
+        coordinates::TERRAIN_CHUNK_LENGTH,
         ChunkEntities, RenderDistanceParams, TerrainChunk
     },
     storage::ChunkMap,
-    pipelines::terrain_generation::WaitForTerrainGeneration
+    pipelines::cpu_noise::WaitForTerrainGeneration
 };
 
 pub fn unload_distant_chunks(

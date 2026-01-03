@@ -1,6 +1,6 @@
 use bevy::platform::collections::HashMap;
 use std::sync::Arc;
-use crate::voxel_world::{pipelines::terrain_generation::feature::BigOakTreeFeature, core::voxel::Voxel};
+use crate::voxel_world::{pipelines::cpu_noise::feature::BigOakTreeFeature, core::voxel::Voxel};
 use super::feature::{Feature, OakTreeFeature, CactusFeature, FlowerFeature, PineTreeFeature, BirchTreeFeature, IceSpikeFeature, BambooFeature, AcaciaTreeFeature, JungleTreeFeature, MegaJungleTreeFeature, JungleBushFeature};
 
 pub struct BiomeData {

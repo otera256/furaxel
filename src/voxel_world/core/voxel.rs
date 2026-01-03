@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use block_mesh::{MergeVoxel, Voxel as MergableVoxel, VoxelVisibility};
-
-pub const VOXEL_SIZE: f32 = 1.0;
+use super::coordinates::VOXEL_SIZE;
 
 #[derive(Debug, Clone)]
 pub struct MaterialDef {

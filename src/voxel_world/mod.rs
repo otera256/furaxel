@@ -11,7 +11,7 @@ use core::{RenderDistanceParams, ChunkEntities};
 use storage::ChunkMap;
 use chunking::*;
 use player::*;
-use pipelines::{terrain_generation::*, rendering::VoxelRenderingPlugin};
+use pipelines::{cpu_noise::*, cpu_mesh::VoxelRenderingPlugin};
 pub struct VoxelWorldPlugin;
 
 impl Plugin for VoxelWorldPlugin {

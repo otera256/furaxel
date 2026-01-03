@@ -2,7 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::{core_pipeline::prepass::DepthPrepass, input::mouse::AccumulatedMouseMotion, pbr::Atmosphere, prelude::*, window::{CursorGrabMode, CursorOptions, PrimaryWindow}};
 
-use crate::voxel_world::core::{RenderDistanceParams, terrain_chunk::TERRAIN_CHUNK_LENGTH};
+use crate::voxel_world::core::{RenderDistanceParams, coordinates::TERRAIN_CHUNK_LENGTH};
 
 pub struct VoxelPlayerPlugin;
 

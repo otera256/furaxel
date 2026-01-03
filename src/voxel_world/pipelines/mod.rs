@@ -1,2 +1,2 @@
-pub mod terrain_generation;
-pub mod rendering;
+pub mod cpu_noise;
+pub mod cpu_mesh;
