@@ -15,11 +15,10 @@ use crate::voxel_world::{
 };
 use self::biomes::BiomeRegistry;
 
-pub struct TerrainGenerationPlugin;
+#[derive(Default)]
+pub struct CpuNoiseTerrainGenerationPlugin;
 
-
-
-impl Plugin for TerrainGenerationPlugin {
+impl Plugin for CpuNoiseTerrainGenerationPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(TerrainGenerationStorage::default())

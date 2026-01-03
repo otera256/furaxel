@@ -13,9 +13,10 @@ use crate::voxel_world::{
     }
 };
 
-pub struct VoxelRenderingPlugin;
+#[derive(Default)]
+pub struct CpuMeshRenderingPlugin;
 
-impl Plugin for VoxelRenderingPlugin {
+impl Plugin for CpuMeshRenderingPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(MaterialPlugin::<WaterMaterial>::default())

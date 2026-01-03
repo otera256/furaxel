@@ -11,15 +11,27 @@ use core::{RenderDistanceParams, ChunkEntities};
 use storage::ChunkMap;
 use chunking::*;
 use player::*;
-use pipelines::{cpu_noise::*, cpu_mesh::VoxelRenderingPlugin};
-pub struct VoxelWorldPlugin;
+use pipelines::{cpu_noise::CpuNoiseTerrainGenerationPlugin, cpu_mesh::CpuMeshRenderingPlugin};
+use std::marker::PhantomData;
 
-impl Plugin for VoxelWorldPlugin {
+pub type DefaultVoxelWorldPlugin = VoxelWorldPlugin<CpuNoiseTerrainGenerationPlugin, CpuMeshRenderingPlugin>;
+
+pub struct VoxelWorldPlugin<G = CpuNoiseTerrainGenerationPlugin, R = CpuMeshRenderingPlugin> {
+    _marker: PhantomData<(G, R)>,
+}
+
+impl<G, R> Default for VoxelWorldPlugin<G, R> {
+    fn default() -> Self {
+        Self { _marker: PhantomData }
+    }
+}
+
+impl<G: Plugin + Default, R: Plugin + Default> Plugin for VoxelWorldPlugin<G, R> {
     fn build(&self, app: &mut App) {
         app
             .add_plugins((
-                TerrainGenerationPlugin,
-                VoxelRenderingPlugin,
+                G::default(),
+                R::default(),
                 VoxelPlayerPlugin,
             ))
             .insert_resource(RenderDistanceParams::default())
