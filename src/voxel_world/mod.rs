@@ -42,7 +42,9 @@ impl<G: Plugin + Default, R: Plugin + Default> Plugin for VoxelWorldPlugin<G, R>
             ))
             .add_systems(Update, (
                 update_chunk_entities.run_if(resource_changed::<RenderDistanceParams>),
-                unload_distant_chunks.run_if(on_timer(Duration::from_secs(2))),
+            ))
+            .add_systems(PostUpdate, (
+                unload_distant_chunks.run_if(on_timer(Duration::from_secs(5))),
             ))
             ;
     }

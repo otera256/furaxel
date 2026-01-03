@@ -1,4 +1,5 @@
 mod voxel_world;
+mod debug;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
@@ -11,7 +12,8 @@ fn main() {
             DefaultPlugins,
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
-            DefaultVoxelWorldPlugin::default()
+            DefaultVoxelWorldPlugin::default(),
+            debug::fps_monitor::FpsMonitorPlugin,
         ))
         .run();
 }

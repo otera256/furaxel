@@ -33,6 +33,7 @@ macro_rules! define_biomes {
                 pub const $name: Self = Self { id: $id };
             )*
             
+            #[allow(dead_code)]
             pub fn new(id: u8) -> Self {
                 Self { id }
             }
@@ -191,6 +192,7 @@ impl BiomeRegistry {
         Self { biomes }
     }
 
+    #[allow(dead_code)]
     pub fn get_biome_data(&self, biome: Biome) -> &BiomeData {
         self.biomes.get(&biome.id).unwrap_or_else(|| self.biomes.get(&0).unwrap())
     }

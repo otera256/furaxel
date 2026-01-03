@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use block_mesh::{MergeVoxel, Voxel as MergableVoxel, VoxelVisibility};
-use super::coordinates::VOXEL_SIZE;
 
 #[derive(Debug, Clone)]
 pub struct MaterialDef {
@@ -79,9 +78,11 @@ macro_rules! define_voxels {
 
         impl Voxel {
             $(
+                #[allow(dead_code)]
                 pub const $name: Self = Self { id: $id };
             )*
 
+            #[allow(dead_code)]
             pub fn new(id: u16) -> Self {
                 Self { id }
             }

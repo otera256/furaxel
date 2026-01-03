@@ -1,5 +1,5 @@
 use bevy::{prelude::*, platform::collections::HashMap};
-use super::coordinates::{TERRAIN_CHUNK_SIZE, TERRAIN_CHUNK_LENGTH};
+use super::coordinates::TERRAIN_CHUNK_SIZE;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TerrainChunk {
@@ -32,7 +32,7 @@ impl Default for RenderDistanceParams {
     fn default() -> Self {
         Self {
             player_chunk: IVec3::ZERO,
-            horizontal: 24,
+            horizontal: 16,
             vertical: 4,
         }
     }
