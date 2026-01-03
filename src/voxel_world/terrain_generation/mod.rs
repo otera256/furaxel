@@ -82,6 +82,9 @@ fn queue_altitude_tasks(
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
     let seed = world_gen_config.seed;
+    let player_chunk = render_distance_params.player_chunk;
+    let h = render_distance_params.horizontal;
+    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks
         .iter()
@@ -90,6 +93,13 @@ fn queue_altitude_tasks(
         })
     {
         let chunk_pos = terrain_chunk.position;
+        
+        // Check if chunk is too far
+        let offset = chunk_pos - player_chunk;
+        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+            continue;
+        }
+
         let chunk_xz = chunk_pos.xz();
 
         if storage.altitude_maps.contains_key(&chunk_xz) {
@@ -141,12 +151,23 @@ fn queue_base_terrain_tasks(
     target_chunks: Query<(Entity, &TerrainChunk), With<WaitForBaseTerrain>>,
     world_gen_config: Res<WorldGenConfig>,
     storage: Res<TerrainGenerationStorage>,
+    render_distance_params: Res<RenderDistanceParams>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
+    let player_chunk = render_distance_params.player_chunk;
+    let h = render_distance_params.horizontal;
+    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks.iter() {
         let chunk_pos = terrain_chunk.position;
+        
+        // Check if chunk is too far (same logic as update_chunk_entities removal)
+        let offset = chunk_pos - player_chunk;
+        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+            continue;
+        }
+
         let chunk_xz = chunk_pos.xz();
 
         if let Some(altitude_map) = storage.altitude_maps.get(&chunk_xz) {
@@ -191,13 +212,24 @@ fn queue_feature_tasks(
     target_chunks: Query<(Entity, &TerrainChunk), With<WaitForNeighbors>>,
     storage: Res<TerrainGenerationStorage>,
     world_gen_config: Res<WorldGenConfig>,
+    render_distance_params: Res<RenderDistanceParams>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
     let seed = world_gen_config.seed;
+    let player_chunk = render_distance_params.player_chunk;
+    let h = render_distance_params.horizontal;
+    let v = render_distance_params.vertical;
 
     for (entity, terrain_chunk) in target_chunks.iter() {
         let chunk_pos = terrain_chunk.position;
+        
+        // Check if chunk is too far
+        let offset = chunk_pos - player_chunk;
+        if offset.y.abs() > v + 2 || offset.x * offset.x + offset.z * offset.z > (h + 2) * (h + 2) {
+            continue;
+        }
+
         let chunk_xz = chunk_pos.xz();
         
         // Check neighbors (3x3 area in XZ plane)
