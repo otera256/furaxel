@@ -806,15 +806,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_flycam"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bcf7c519a030ecb02ff62780f086aa57ab1b888997ca04d56dd6e322a359401"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "bevy_gilrs"
 version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2631,7 +2622,6 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_aseprite_ultra",
- "bevy_flycam",
  "block-mesh",
  "itertools 0.14.0",
  "ndarray",

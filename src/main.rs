@@ -2,7 +2,6 @@ mod voxel_world;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
-use bevy_flycam::prelude::*;
 
 use crate::voxel_world::VoxelWorldPlugin;
 
@@ -12,7 +11,6 @@ fn main() {
             DefaultPlugins,
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
-            NoCameraPlayerPlugin,
             VoxelWorldPlugin
         ))
         .run();
