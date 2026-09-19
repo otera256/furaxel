@@ -7,9 +7,22 @@ use itertools::iproduct;
 
 use crate::voxel_world::core::{chunk::Chunk, terrain_chunk::{PaddedTerrainChunkShape, TerrainChunkData}, coordinates::TERRAIN_CHUNK_SIZE, voxel::Voxel};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoxelWritePolicy {
+    Always,
+    ReplaceSoft,
+}
+
+#[derive(Debug, Default)]
+pub struct VoxelMutationReport {
+    pub changed_chunks: HashSet<IVec3>,
+    pub mesh_dirty_chunks: HashSet<IVec3>,
+    pub skipped_positions: Vec<IVec3>,
+}
+
 #[derive(Debug, Resource, Default)]
 pub struct ChunkMap {
-    pub chunks: HashMap<IVec3, TerrainChunkData>,
+    chunks: HashMap<IVec3, TerrainChunkData>,
 }
 
 #[allow(dead_code)]
@@ -22,6 +35,14 @@ impl ChunkMap {
 
     pub fn insert(&mut self, chunk: TerrainChunkData) {
         self.chunks.insert(chunk.position, chunk);
+    }
+
+    pub fn positions(&self) -> impl Iterator<Item = &IVec3> {
+        self.chunks.keys()
+    }
+
+    pub fn remove(&mut self, position: &IVec3) -> Option<TerrainChunkData> {
+        self.chunks.remove(position)
     }
 
     pub fn get(&self, position: &IVec3) -> Option<&TerrainChunkData> {
@@ -98,12 +119,12 @@ impl ChunkMap {
         })
     }
 
-    pub fn get_mut(&mut self, position: &IVec3) -> Option<&mut TerrainChunkData> {
-        self.chunks.get_mut(position)
-    }
-
-    pub fn set_bulk(&mut self, changes: Vec<(IVec3, Voxel)>) -> HashSet<IVec3> {
-        let mut chunks_to_update = HashSet::new();
+    pub(crate) fn apply_voxel_changes(
+        &mut self,
+        changes: Vec<(IVec3, Voxel)>,
+        policy: VoxelWritePolicy,
+    ) -> VoxelMutationReport {
+        let mut report = VoxelMutationReport::default();
         let mut changes_by_chunk: HashMap<IVec3, Vec<(IVec3, Voxel)>> = HashMap::new();
         
         for (world_pos, voxel) in changes {
@@ -112,24 +133,47 @@ impl ChunkMap {
         }
 
         for (chunk_pos, chunk_changes) in changes_by_chunk {
-            if let Some(chunk) = self.chunks.get_mut(&chunk_pos) {
-                let mut modified = false;
-                for (world_pos, voxel) in chunk_changes {
-                    let local_pos = (world_pos.rem_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32))).as_uvec3();
-                    let target_voxel = chunk.get_local_at_mut(local_pos);
-                    
-                    // Only overwrite if the target is empty, water, or snow (soft blocks)
-                    if target_voxel.id == Voxel::EMPTY.id || target_voxel.id == Voxel::WATER.id || target_voxel.id == Voxel::SNOW.id {
-                        *target_voxel = voxel;
-                        modified = true;
+            let Some(chunk) = self.chunks.get_mut(&chunk_pos) else {
+                report.skipped_positions.extend(chunk_changes.into_iter().map(|(pos, _)| pos));
+                continue;
+            };
+
+            for (world_pos, voxel) in chunk_changes {
+                let local_pos = (world_pos.rem_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32))).as_uvec3();
+                let target_voxel = chunk.get_local_at_mut(local_pos);
+                let can_replace = match policy {
+                    VoxelWritePolicy::Always => true,
+                    VoxelWritePolicy::ReplaceSoft => {
+                        target_voxel.id == Voxel::EMPTY.id
+                            || target_voxel.id == Voxel::WATER.id
+                            || target_voxel.id == Voxel::SNOW.id
                     }
+                };
+
+                if !can_replace {
+                    report.skipped_positions.push(world_pos);
+                    continue;
                 }
-                if modified {
-                    chunks_to_update.insert(chunk_pos);
+
+                if *target_voxel == voxel {
+                    continue;
                 }
+
+                *target_voxel = voxel;
+                report.changed_chunks.insert(chunk_pos);
+                report.mesh_dirty_chunks.insert(chunk_pos);
+
+                let max = TERRAIN_CHUNK_SIZE - 1;
+                if local_pos.x == 0 { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::NEG_X); }
+                if local_pos.x == max { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::X); }
+                if local_pos.y == 0 { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::NEG_Y); }
+                if local_pos.y == max { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::Y); }
+                if local_pos.z == 0 { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::NEG_Z); }
+                if local_pos.z == max { report.mesh_dirty_chunks.insert(chunk_pos + IVec3::Z); }
             }
         }
-        chunks_to_update
+
+        report
     }
 
     pub fn get_at(&self, world_pos: IVec3) -> Option<Voxel> {
@@ -137,9 +181,65 @@ impl ChunkMap {
         let chunk = self.chunks.get(&chunk_pos)?;
         Some(chunk.get_at(world_pos))
     }
-    pub fn get_at_mut(&mut self, world_pos: IVec3) -> Option<&mut Voxel> {
-        let chunk_pos = world_pos.div_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32));
-        let chunk = self.chunks.get_mut(&chunk_pos)?;
-        Some(chunk.get_at_mut(world_pos))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map_with_empty_chunk(position: IVec3) -> ChunkMap {
+        let mut map = ChunkMap::new();
+        map.insert(TerrainChunkData::new_empty(position));
+        map
+    }
+
+    #[test]
+    fn interior_edit_only_invalidates_its_own_chunk() {
+        let mut map = map_with_empty_chunk(IVec3::ZERO);
+        let position = IVec3::new(1, 2, 3);
+
+        let report = map.apply_voxel_changes(
+            vec![(position, Voxel::STONE)],
+            VoxelWritePolicy::Always,
+        );
+
+        assert_eq!(map.get_at(position), Some(Voxel::STONE));
+        assert_eq!(report.changed_chunks, HashSet::from([IVec3::ZERO]));
+        assert_eq!(report.mesh_dirty_chunks, HashSet::from([IVec3::ZERO]));
+    }
+
+    #[test]
+    fn negative_boundary_edit_invalidates_the_touching_neighbor() {
+        let chunk_pos = IVec3::new(-1, 0, 0);
+        let mut map = map_with_empty_chunk(chunk_pos);
+        let position = IVec3::new(-1, 1, 1);
+
+        let report = map.apply_voxel_changes(
+            vec![(position, Voxel::STONE)],
+            VoxelWritePolicy::Always,
+        );
+
+        assert!(report.mesh_dirty_chunks.contains(&chunk_pos));
+        assert!(report.mesh_dirty_chunks.contains(&IVec3::ZERO));
+        assert_eq!(report.mesh_dirty_chunks.len(), 2);
+    }
+
+    #[test]
+    fn replace_soft_does_not_overwrite_solid_voxels() {
+        let mut map = map_with_empty_chunk(IVec3::ZERO);
+        let position = IVec3::new(1, 1, 1);
+        map.apply_voxel_changes(
+            vec![(position, Voxel::STONE)],
+            VoxelWritePolicy::Always,
+        );
+
+        let report = map.apply_voxel_changes(
+            vec![(position, Voxel::FLOWER_RED)],
+            VoxelWritePolicy::ReplaceSoft,
+        );
+
+        assert_eq!(map.get_at(position), Some(Voxel::STONE));
+        assert!(report.changed_chunks.is_empty());
+        assert_eq!(report.skipped_positions, vec![position]);
     }
 }

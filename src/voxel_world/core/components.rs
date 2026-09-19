@@ -20,6 +20,10 @@ impl ChunkContentRevision {
     }
 }
 
+/// Marks a chunk whose committed mesh no longer represents current voxel data.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct ChunkMeshDirty;
+
 #[allow(dead_code)]
 impl TerrainChunk {
     pub fn chunk_origin(&self) -> IVec3 {

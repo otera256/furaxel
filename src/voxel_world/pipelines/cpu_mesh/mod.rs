@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use itertools::iproduct;
 
 use crate::voxel_world::{
-    core::{ChunkEntities, ChunkGeneratedEvent},
+    core::{ChunkEntities, ChunkGeneratedEvent, ChunkMeshDirty},
     pipelines::{
         cpu_noise::storage::TerrainGenerationStorage,
         cpu_mesh::{material::*, meshing::*, water::WaterMaterial},
@@ -31,7 +31,7 @@ impl Plugin for CpuMeshRenderingPlugin {
     }
 }
 
-// 他のチャンクの生成完了イベントを受け取り、メッシュ更新が必要なチャンクにNeedMeshUpdateコンポーネントを追加する
+// 他のチャンクの生成完了イベントを受け取り、メッシュ更新が必要なチャンクをdirtyにする
 fn trigger_mesh_update(
     mut commands: Commands,
     mut events: MessageReader<ChunkGeneratedEvent>,
@@ -82,7 +82,7 @@ fn trigger_mesh_update(
                         let entity = *entity;
                         commands.queue(move |world: &mut World| {
                             if let Ok(mut entity_world) = world.get_entity_mut(entity) {
-                                entity_world.insert(NeedMeshUpdate);
+                                entity_world.insert(ChunkMeshDirty);
                             }
                         });
                     }

@@ -2,6 +2,7 @@ pub mod core;
 pub mod storage;
 pub mod pipelines;
 pub mod chunking;
+pub mod editing;
 pub mod player;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};
@@ -11,6 +12,7 @@ use core::{RenderDistanceParams, ChunkEntities};
 use storage::ChunkMap;
 use chunking::*;
 use player::*;
+use editing::VoxelEditingPlugin;
 use pipelines::{cpu_noise::CpuNoiseTerrainGenerationPlugin, cpu_mesh::CpuMeshRenderingPlugin};
 use std::marker::PhantomData;
 
@@ -32,6 +34,7 @@ impl<G: Plugin + Default, R: Plugin + Default> Plugin for VoxelWorldPlugin<G, R>
             .add_plugins((
                 G::default(),
                 R::default(),
+                VoxelEditingPlugin,
                 VoxelPlayerPlugin,
             ))
             .insert_resource(RenderDistanceParams::default())

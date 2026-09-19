@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::tasks::futures::check_ready;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use crate::voxel_world::{
-    core::{ChunkContentRevision, ChunkEntities, TerrainChunk},
+    core::{ChunkContentRevision, ChunkEntities, ChunkMeshDirty, TerrainChunk},
     storage::ChunkMap,
 };
 use super::material::{MaterialRepository, VoxelMaterialHandle};
@@ -10,9 +10,6 @@ use super::material::{MaterialRepository, VoxelMaterialHandle};
 // メッシュが作成中または既に作成されたチャンクに付与されるコンポーネント
 #[derive(Component)]
 pub struct MeshQueued;
-
-#[derive(Component)]
-pub struct NeedMeshUpdate;
 
 #[derive(Component)]
 pub struct NeedImmediateMeshUpdate;
@@ -85,7 +82,7 @@ pub fn queue_mesh_tasks(
     material_repo: Res<MaterialRepository>,
     chunk_entities: Res<ChunkEntities>,
     revisions: Query<&ChunkContentRevision>,
-    chunks: Query<(Entity, &TerrainChunk), (With<NeedMeshUpdate>, Without<ComputingMesh>, Without<NeedImmediateMeshUpdate>)>,
+    chunks: Query<(Entity, &TerrainChunk), (With<ChunkMeshDirty>, Without<ComputingMesh>, Without<NeedImmediateMeshUpdate>)>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
 
@@ -100,7 +97,7 @@ pub fn queue_mesh_tasks(
                 material_repo.create_mesh(padded_chunk)
             });
             commands.entity(entity)
-                .remove::<NeedMeshUpdate>()
+                .remove::<ChunkMeshDirty>()
                 .insert(ComputingMesh { task, input })
                 .insert(MeshQueued);
         }
@@ -125,7 +122,7 @@ pub fn handle_mesh_tasks(
             if !should_commit_mesh(&task.input, current_input.as_ref()) {
                 commands.entity(entity)
                     .remove::<ComputingMesh>()
-                    .insert(NeedMeshUpdate);
+                    .insert(ChunkMeshDirty);
                 continue;
             }
 
@@ -185,7 +182,7 @@ pub fn immediate_mesh_update(
         }
         commands.entity(entity)
             .remove::<NeedImmediateMeshUpdate>()
-            .remove::<NeedMeshUpdate>() // Also remove NeedMeshUpdate if present
+            .remove::<ChunkMeshDirty>()
             .insert(MeshQueued);
     }
 }

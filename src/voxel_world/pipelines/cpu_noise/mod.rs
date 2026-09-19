@@ -11,6 +11,7 @@ use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
     core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
+    editing::apply_voxel_changes,
     pipelines::cpu_noise::storage::TerrainGenerationStorage,
     storage::ChunkMap,
 };
@@ -302,14 +303,14 @@ fn handle_feature_tasks(
 ) {
     for (entity, mut task, terrain_chunk) in &mut tasks {
         if let Some(result) = check_ready(&mut task.0) {
-            let changed_chunks = chunk_map.set_bulk(result.changes);
-            for changed_chunk in changed_chunks {
-                if let Some(changed_entity) = chunk_entities.entities.get(&changed_chunk)
-                    && let Ok(mut revision) = revisions.get_mut(*changed_entity)
-                {
-                    revision.advance();
-                }
-            }
+            apply_voxel_changes(
+                &mut commands,
+                &mut chunk_map,
+                &chunk_entities,
+                &mut revisions,
+                result.changes,
+                crate::voxel_world::storage::VoxelWritePolicy::ReplaceSoft,
+            );
 
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {

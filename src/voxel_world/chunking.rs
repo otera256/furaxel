@@ -16,7 +16,7 @@ pub fn unload_distant_chunks(
     render_distance_params: Res<RenderDistanceParams>,
 ) {
     let mut to_remove = Vec::new();
-    for chunk_pos in chunk_map.chunks.keys() {
+    for chunk_pos in chunk_map.positions() {
         if should_unload_chunk(*chunk_pos, &render_distance_params) {
             to_remove.push(*chunk_pos);
         }
@@ -25,7 +25,7 @@ pub fn unload_distant_chunks(
     if !to_remove.is_empty() {
         // info!("Unloading {} distant chunks", to_remove.len());
         for chunk_pos in to_remove {
-            chunk_map.chunks.remove(&chunk_pos);
+            chunk_map.remove(&chunk_pos);
         }
     }
 }
