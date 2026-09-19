@@ -67,8 +67,8 @@ impl TerrainChunkData {
         self.chunk.get_at(pos)
     }
     #[inline]
-    pub fn get_local_at_mut(&mut self, pos: UVec3) -> &mut Voxel {
-        self.chunk.get_at_mut(pos)
+    pub fn set_local_at(&mut self, pos: UVec3, voxel: Voxel) -> bool {
+        self.chunk.set_at(pos, voxel)
     }
     #[inline]
     pub fn get_at(&self, world_pos: IVec3) -> Voxel {
@@ -78,10 +78,10 @@ impl TerrainChunkData {
         self.get_local_at(UVec3::new(local_x, local_y, local_z))
     }
     #[inline]
-    pub fn get_at_mut(&mut self, world_pos: IVec3) -> &mut Voxel {
+    pub fn set_at(&mut self, world_pos: IVec3, voxel: Voxel) -> bool {
         let local_x = (world_pos.x - self.chunk_origin().x) as u32;
         let local_y = (world_pos.y - self.chunk_origin().y) as u32;
         let local_z = (world_pos.z - self.chunk_origin().z) as u32;
-        self.get_local_at_mut(UVec3::new(local_x, local_y, local_z))
+        self.set_local_at(UVec3::new(local_x, local_y, local_z), voxel)
     }
 }

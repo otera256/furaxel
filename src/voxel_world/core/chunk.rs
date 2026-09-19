@@ -41,8 +41,13 @@ impl<S: Shape<3, Coord = u32>> Chunk<S> {
         self.voxels[self.shape.linearize(pos.to_array()) as usize]
     }
     #[inline]
-    pub fn get_at_mut(&mut self, pos: UVec3) -> &mut Voxel {
-        &mut self.voxels[self.shape.linearize(pos.to_array()) as usize]
+    pub fn set_at(&mut self, pos: UVec3, voxel: Voxel) -> bool {
+        let target = &mut self.voxels[self.shape.linearize(pos.to_array()) as usize];
+        if *target == voxel {
+            return false;
+        }
+        *target = voxel;
+        true
     }
 
     pub fn as_slice(&self) -> &[Voxel] {

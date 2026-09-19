@@ -48,10 +48,6 @@ impl ChunkMap {
     pub fn get(&self, position: &IVec3) -> Option<&TerrainChunkData> {
         self.chunks.get(position)
     }
-    pub fn get_slice(&self, position: &IVec3) -> Option<&[Voxel]> {
-        let chunk = self.chunks.get(position)?;
-        Some(chunk.chunk.as_slice())
-    }
     // meshingする際に使用。隣接する6チャンクの1層分を取り込んで取得する
     // positionのチャンクが存在しないときはNoneを返す
     // 隣接するチャンクが存在しないときはEMPTY_VOXELで埋める
@@ -140,7 +136,7 @@ impl ChunkMap {
 
             for (world_pos, voxel) in chunk_changes {
                 let local_pos = (world_pos.rem_euclid(IVec3::splat(TERRAIN_CHUNK_SIZE as i32))).as_uvec3();
-                let target_voxel = chunk.get_local_at_mut(local_pos);
+                let target_voxel = chunk.get_local_at(local_pos);
                 let can_replace = match policy {
                     VoxelWritePolicy::Always => true,
                     VoxelWritePolicy::ReplaceSoft => {
@@ -155,11 +151,11 @@ impl ChunkMap {
                     continue;
                 }
 
-                if *target_voxel == voxel {
+                if target_voxel == voxel {
                     continue;
                 }
 
-                *target_voxel = voxel;
+                chunk.set_local_at(local_pos, voxel);
                 report.changed_chunks.insert(chunk_pos);
                 report.mesh_dirty_chunks.insert(chunk_pos);
 

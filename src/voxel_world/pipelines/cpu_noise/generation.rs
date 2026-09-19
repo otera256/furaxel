@@ -191,7 +191,7 @@ pub fn generate_base_terrain(
                 };
 
                 if voxel != Voxel::EMPTY {
-                    *chunk_data.get_local_at_mut(UVec3::new(x, y, z)) = voxel;
+                    chunk_data.set_local_at(UVec3::new(x, y, z), voxel);
                 }
             }
         }

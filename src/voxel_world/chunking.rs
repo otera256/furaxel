@@ -183,7 +183,7 @@ mod tests {
     fn leaving_and_reentering_reuses_completed_voxel_data() {
         let edited_position = IVec3::new(1, 1, 1);
         let mut cached = TerrainChunkData::new_empty(IVec3::ZERO);
-        *cached.get_at_mut(edited_position) = crate::voxel_world::core::Voxel::STONE;
+        cached.set_at(edited_position, crate::voxel_world::core::Voxel::STONE);
 
         let mut app = App::new();
         let mut chunk_map = ChunkMap::default();
