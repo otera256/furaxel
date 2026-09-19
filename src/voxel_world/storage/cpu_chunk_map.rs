@@ -48,6 +48,15 @@ impl ChunkMap {
     pub fn get(&self, position: &IVec3) -> Option<&TerrainChunkData> {
         self.chunks.get(position)
     }
+
+    pub fn compact(&mut self, position: &IVec3) -> bool {
+        let Some(chunk) = self.chunks.get_mut(position) else {
+            return false;
+        };
+        let was_rle = chunk.is_rle();
+        chunk.compact();
+        !was_rle && chunk.is_rle()
+    }
     // meshingする際に使用。隣接する6チャンクの1層分を取り込んで取得する
     // positionのチャンクが存在しないときはNoneを返す
     // 隣接するチャンクが存在しないときはEMPTY_VOXELで埋める
@@ -237,5 +246,31 @@ mod tests {
         assert_eq!(map.get_at(position), Some(Voxel::STONE));
         assert!(report.changed_chunks.is_empty());
         assert_eq!(report.skipped_positions, vec![position]);
+    }
+
+    #[test]
+    fn padded_mesh_input_is_identical_for_compacted_chunks() {
+        let position = IVec3::ZERO;
+        let dense = TerrainChunkData::new_from_fn_local(position, |local| {
+            if local.y < 16 {
+                Voxel::STONE
+            } else {
+                Voxel::EMPTY
+            }
+        });
+        let expected = dense.get_local_at(UVec3::new(5, 5, 5));
+        let mut compacted = dense.clone();
+        compacted.compact();
+
+        let mut dense_map = ChunkMap::default();
+        dense_map.insert(dense);
+        let mut compacted_map = ChunkMap::default();
+        compacted_map.insert(compacted);
+
+        let dense_padded = dense_map.get_padded_chunk_vec(&position).unwrap();
+        let compacted_padded = compacted_map.get_padded_chunk_vec(&position).unwrap();
+
+        assert_eq!(dense_padded.voxels, compacted_padded.voxels);
+        assert_eq!(compacted_map.get_at(IVec3::new(5, 5, 5)), Some(expected));
     }
 }

@@ -344,6 +344,10 @@ fn handle_feature_tasks(
                 crate::voxel_world::storage::VoxelWritePolicy::Always,
             );
 
+            // All bulk writes are complete. Compact only now so generation
+            // remains contiguous and cheap while the chunk is being built.
+            chunk_map.compact(&terrain_chunk.position);
+
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
                     entity_world.remove::<ComputingFeatures>();

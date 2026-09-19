@@ -195,7 +195,7 @@ impl VoxelStorage {
     }
 
     pub fn set(&mut self, position: UVec3, voxel: Voxel) -> bool {
-        match self {
+        let changed = match self {
             Self::Dense(dense) => {
                 let target = &mut dense[dense_index(position.x, position.y, position.z)];
                 if *target == voxel {
@@ -205,7 +205,15 @@ impl VoxelStorage {
                 true
             }
             Self::VerticalRle(rle) => rle.set(position, voxel),
+        };
+
+        if changed
+            && matches!(self, Self::VerticalRle(rle) if rle.memory_bytes() >= RLE_VOXEL_COUNT * size_of::<Voxel>())
+        {
+            let dense = self.to_dense();
+            *self = Self::Dense(dense);
         }
+        changed
     }
 
     pub fn to_dense(&self) -> Box<[Voxel]> {
