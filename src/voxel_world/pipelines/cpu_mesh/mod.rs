@@ -3,10 +3,11 @@ pub mod material;
 pub mod water;
 
 use bevy::prelude::*;
-use itertools::iproduct;
+use bevy::time::common_conditions::on_timer;
+use std::time::Duration;
 
 use crate::voxel_world::{
-    core::{ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, ChunkMeshDirty},
+    core::{ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, ChunkMeshDirty, TerrainChunk},
     pipelines::{
         cpu_mesh::{material::*, meshing::*, water::WaterMaterial},
     }
@@ -22,11 +23,12 @@ impl Plugin for CpuMeshRenderingPlugin {
             .insert_resource(MaterialRepository::default())
             .add_systems(Startup, material_setup)
             .add_systems(Update, (
-                queue_mesh_tasks,
                 handle_mesh_tasks,
                 immediate_mesh_update,
                 trigger_mesh_update,
-            ));
+                reconcile_missing_meshes.run_if(on_timer(Duration::from_millis(500))),
+                queue_mesh_tasks,
+            ).chain());
     }
 }
 
@@ -42,22 +44,16 @@ fn trigger_mesh_update(
     for event in events.read() {
         let chunk_pos = event.0;
         
-        let mut candidates = Vec::new();
-        candidates.push(chunk_pos);
-        for (dx, dy, dz) in iproduct!(-1..=1, -1..=1, -1..=1) {
-            if dx == 0 && dy == 0 && dz == 0 { continue; }
-            candidates.push(chunk_pos + IVec3::new(dx, dy, dz));
-        }
+        let candidates = std::iter::once(chunk_pos)
+            .chain(FACE_NEIGHBORS.into_iter().map(|offset| chunk_pos + offset));
 
         for pos in candidates {
             if let Some(entity) = chunk_entities.entities.get(&pos) {
                 if generation_complete.get(*entity).is_ok() {
-                    let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
-                        .all(|(dx, dy, dz)| {
-                            let neighbor_pos = pos + IVec3::new(dx, dy, dz);
-                            chunk_entities.entities.get(&neighbor_pos)
-                                .is_some_and(|entity| generation_complete.get(*entity).is_ok())
-                        });
+                    let all_neighbors_ready = face_neighbors_ready(pos, |neighbor_pos| {
+                        chunk_entities.entities.get(&neighbor_pos)
+                            .is_some_and(|entity| generation_complete.get(*entity).is_ok())
+                    });
 
                     let current_input = current_mesh_input_stamp(
                         pos,
@@ -88,6 +84,48 @@ fn trigger_mesh_update(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Event-driven invalidation is fast, but correctness must not depend on a
+/// single frame's event delivery. This low-frequency pass repairs any complete
+/// chunk that is missing a current mesh after rapid movement or task churn.
+fn reconcile_missing_meshes(
+    mut commands: Commands,
+    chunk_entities: Res<ChunkEntities>,
+    generation_complete: Query<(), With<ChunkGenerationComplete>>,
+    revisions: Query<&crate::voxel_world::core::ChunkContentRevision>,
+    chunks: Query<
+        (Entity, &TerrainChunk, Option<&MeshArtifact>),
+        (
+            With<ChunkGenerationComplete>,
+            Without<ComputingMesh>,
+            Without<ChunkMeshDirty>,
+            Without<NeedImmediateMeshUpdate>,
+        ),
+    >,
+) {
+    for (entity, chunk, artifact) in &chunks {
+        let neighbors_ready = face_neighbors_ready(chunk.position, |neighbor_pos| {
+            chunk_entities.entities.get(&neighbor_pos)
+                .is_some_and(|entity| generation_complete.get(*entity).is_ok())
+        });
+        if !neighbors_ready {
+            continue;
+        }
+
+        let current_input = current_mesh_input_stamp(
+            chunk.position,
+            &chunk_entities,
+            &revisions,
+        );
+        let is_current = artifact
+            .zip(current_input.as_ref())
+            .is_some_and(|(artifact, current)| artifact.built_from == *current);
+
+        if !is_current {
+            commands.entity(entity).insert(ChunkMeshDirty);
         }
     }
 }

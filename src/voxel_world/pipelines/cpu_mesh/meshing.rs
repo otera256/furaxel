@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use bevy::tasks::futures::check_ready;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
+use itertools::Itertools;
 use crate::voxel_world::{
-    core::{ChunkContentRevision, ChunkEntities, ChunkMeshDirty, TerrainChunk},
+    core::{ChunkContentRevision, ChunkEntities, ChunkMeshDirty, RenderDistanceParams, TerrainChunk},
     storage::ChunkMap,
 };
 use super::material::{MaterialRepository, VoxelMaterialHandle};
@@ -37,7 +38,7 @@ pub struct MeshArtifact {
 
 const MAX_MESH_TASKS_IN_FLIGHT: usize = 16;
 
-const FACE_NEIGHBORS: [IVec3; 6] = [
+pub(super) const FACE_NEIGHBORS: [IVec3; 6] = [
     IVec3::NEG_X,
     IVec3::X,
     IVec3::NEG_Y,
@@ -45,6 +46,15 @@ const FACE_NEIGHBORS: [IVec3; 6] = [
     IVec3::NEG_Z,
     IVec3::Z,
 ];
+
+pub(super) fn face_neighbors_ready(
+    chunk_pos: IVec3,
+    mut is_ready: impl FnMut(IVec3) -> bool,
+) -> bool {
+    FACE_NEIGHBORS
+        .into_iter()
+        .all(|offset| is_ready(chunk_pos + offset))
+}
 
 fn mesh_input_stamp_from_revisions(
     chunk_pos: IVec3,
@@ -85,12 +95,18 @@ pub fn queue_mesh_tasks(
     chunk_entities: Res<ChunkEntities>,
     revisions: Query<&ChunkContentRevision>,
     computing: Query<(), With<ComputingMesh>>,
+    render_distance_params: Res<RenderDistanceParams>,
     chunks: Query<(Entity, &TerrainChunk), (With<ChunkMeshDirty>, Without<ComputingMesh>, Without<NeedImmediateMeshUpdate>)>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let available = MAX_MESH_TASKS_IN_FLIGHT.saturating_sub(computing.iter().count());
 
-    for (entity, chunk) in chunks.iter().take(available) {
+    for (entity, chunk) in chunks
+        .iter()
+        .k_smallest_by_key(available, |(_, chunk)| {
+            (chunk.position - render_distance_params.player_chunk).length_squared()
+        })
+    {
         let Some(input) = current_mesh_input_stamp(chunk.position, &chunk_entities, &revisions) else {
             continue;
         };
@@ -232,5 +248,18 @@ mod tests {
         assert!(!should_commit_mesh(&before, Some(&after)));
         assert!(should_commit_mesh(&after, Some(&after)));
         assert!(!should_commit_mesh(&after, None));
+    }
+
+    #[test]
+    fn mesh_readiness_only_depends_on_face_neighbors() {
+        let center = IVec3::ZERO;
+        let ready = complete_revisions(center, 1);
+
+        assert!(face_neighbors_ready(center, |position| ready.contains_key(&position)));
+        assert!(!face_neighbors_ready(center, |position| position != IVec3::X));
+
+        // Diagonal chunks are not sampled by the padded mesh input.
+        let missing_diagonal = IVec3::ONE;
+        assert!(face_neighbors_ready(center, |position| position != missing_diagonal));
     }
 }

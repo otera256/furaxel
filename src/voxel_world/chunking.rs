@@ -48,6 +48,9 @@ pub fn update_chunk_entities(
             to_create.push(chunk_pos);
         }
     }
+    // Entity insertion order leaks into several ECS queries. Keeping it near-first
+    // gives newly entered areas a sensible order even before their own queues sort.
+    to_create.sort_unstable_by_key(|position| (*position - player_chunk).length_squared());
     let mut to_remove = Vec::new();
     // 1チャンク移動するだけで削除と追加を繰り返すのは非効率なので,
     // 削除対象は余裕をもって判定する
