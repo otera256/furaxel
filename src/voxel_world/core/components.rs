@@ -24,6 +24,14 @@ impl ChunkContentRevision {
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct ChunkMeshDirty;
 
+/// The base terrain artifact is available in the loaded chunk store.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct ChunkBaseTerrainReady;
+
+/// Base terrain and deterministic features have both been committed.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct ChunkGenerationComplete;
+
 #[allow(dead_code)]
 impl TerrainChunk {
     pub fn chunk_origin(&self) -> IVec3 {

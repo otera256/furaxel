@@ -6,9 +6,8 @@ use bevy::prelude::*;
 use itertools::iproduct;
 
 use crate::voxel_world::{
-    core::{ChunkEntities, ChunkGeneratedEvent, ChunkMeshDirty},
+    core::{ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, ChunkMeshDirty},
     pipelines::{
-        cpu_noise::storage::TerrainGenerationStorage,
         cpu_mesh::{material::*, meshing::*, water::WaterMaterial},
     }
 };
@@ -35,8 +34,8 @@ impl Plugin for CpuMeshRenderingPlugin {
 fn trigger_mesh_update(
     mut commands: Commands,
     mut events: MessageReader<ChunkGeneratedEvent>,
-    storage: Res<TerrainGenerationStorage>,
     chunk_entities: Res<ChunkEntities>,
+    generation_complete: Query<(), With<ChunkGenerationComplete>>,
     revisions: Query<&crate::voxel_world::core::ChunkContentRevision>,
     mesh_state_query: Query<(Option<&ComputingMesh>, Option<&MeshArtifact>)>,
 ) {
@@ -51,12 +50,13 @@ fn trigger_mesh_update(
         }
 
         for pos in candidates {
-            if storage.fully_generated.contains(&pos) {
-                if let Some(entity) = chunk_entities.entities.get(&pos) {
+            if let Some(entity) = chunk_entities.entities.get(&pos) {
+                if generation_complete.get(*entity).is_ok() {
                     let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
                         .all(|(dx, dy, dz)| {
                             let neighbor_pos = pos + IVec3::new(dx, dy, dz);
-                            storage.fully_generated.contains(&neighbor_pos)
+                            chunk_entities.entities.get(&neighbor_pos)
+                                .is_some_and(|entity| generation_complete.get(*entity).is_ok())
                         });
 
                     let current_input = current_mesh_input_stamp(

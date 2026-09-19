@@ -10,7 +10,7 @@ use bevy::{
 use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
-    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
+    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkBaseTerrainReady, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
     editing::apply_voxel_changes,
     pipelines::cpu_noise::storage::TerrainGenerationStorage,
     storage::ChunkMap,
@@ -33,6 +33,7 @@ impl Plugin for CpuNoiseTerrainGenerationPlugin {
                 handle_base_terrain_tasks,
                 queue_feature_tasks,
                 handle_feature_tasks,
+                emit_chunk_generated_events,
             ))
             ;
     }
@@ -80,7 +81,6 @@ struct AltitudeTaskResult {
 
 #[derive(Debug)]
 struct BaseTerrainTaskResult {
-    chunk_pos: IVec3,
     chunk_data: TerrainChunkData,
 }
 
@@ -195,7 +195,7 @@ fn queue_base_terrain_tasks(
             let task = thread_pool.spawn(async move {
                 let chunk_data = generation::generate_base_terrain(chunk_pos, &altitude_map, &biome_map, &config);
 
-                BaseTerrainTaskResult { chunk_pos, chunk_data }
+                BaseTerrainTaskResult { chunk_data }
             });
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
@@ -212,19 +212,17 @@ fn handle_base_terrain_tasks(
     mut tasks: Query<(Entity, &mut ComputingBaseTerrain)>,
     mut revisions: Query<&mut ChunkContentRevision>,
     mut chunk_map: ResMut<ChunkMap>,
-    mut storage: ResMut<TerrainGenerationStorage>,
 ) {
     for (entity, mut task) in &mut tasks {
         if let Some(result) = check_ready(&mut task.0) {
             chunk_map.insert(result.chunk_data);
-            storage.base_terrain_generated.insert(result.chunk_pos);
             if let Ok(mut revision) = revisions.get_mut(entity) {
                 revision.advance();
             }
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
                     entity_world.remove::<ComputingBaseTerrain>();
-                    entity_world.insert(WaitForNeighbors);
+                    entity_world.insert((ChunkBaseTerrainReady, WaitForNeighbors));
                 }
             });
         }
@@ -237,6 +235,8 @@ fn queue_feature_tasks(
     storage: Res<TerrainGenerationStorage>,
     world_gen_config: Res<WorldGenConfig>,
     render_distance_params: Res<RenderDistanceParams>,
+    chunk_entities: Res<ChunkEntities>,
+    base_terrain_ready: Query<(), With<ChunkBaseTerrainReady>>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
@@ -257,7 +257,9 @@ fn queue_feature_tasks(
             for dz in -1..=1 {
                 if dx == 0 && dz == 0 { continue; }
                 let neighbor_pos = chunk_pos + IVec3::new(dx, 0, dz);
-                if !storage.base_terrain_generated.contains(&neighbor_pos) {
+                let neighbor_ready = chunk_entities.entities.get(&neighbor_pos)
+                    .is_some_and(|entity| base_terrain_ready.get(*entity).is_ok());
+                if !neighbor_ready {
                     all_neighbors_ready = false;
                     break;
                 }
@@ -294,14 +296,12 @@ fn queue_feature_tasks(
 
 fn handle_feature_tasks(
     mut commands: Commands,
-    mut tasks: Query<(Entity, &mut ComputingFeatures, &TerrainChunk)>,
-    mut event_writer: MessageWriter<ChunkGeneratedEvent>,
-    mut storage: ResMut<TerrainGenerationStorage>,
+    mut tasks: Query<(Entity, &mut ComputingFeatures)>,
     chunk_entities: Res<ChunkEntities>,
     mut chunk_map: ResMut<ChunkMap>,
     mut revisions: Query<&mut ChunkContentRevision>,
 ) {
-    for (entity, mut task, terrain_chunk) in &mut tasks {
+    for (entity, mut task) in &mut tasks {
         if let Some(result) = check_ready(&mut task.0) {
             apply_voxel_changes(
                 &mut commands,
@@ -315,15 +315,18 @@ fn handle_feature_tasks(
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
                     entity_world.remove::<ComputingFeatures>();
+                    entity_world.insert(ChunkGenerationComplete);
                 }
             });
-
-            // If the chunk has already been removed from the active set, don't
-            // emit an event or mark it as fully generated.
-            if chunk_entities.entities.contains_key(&terrain_chunk.position) {
-                event_writer.write(ChunkGeneratedEvent(terrain_chunk.position));
-                storage.fully_generated.insert(terrain_chunk.position);
-            }
         }
+    }
+}
+
+fn emit_chunk_generated_events(
+    chunks: Query<&TerrainChunk, Added<ChunkGenerationComplete>>,
+    mut event_writer: MessageWriter<ChunkGeneratedEvent>,
+) {
+    for chunk in &chunks {
+        event_writer.write(ChunkGeneratedEvent(chunk.position));
     }
 }
