@@ -10,7 +10,7 @@ use itertools::Itertools;
 use std::sync::Arc;
 use bevy::platform::collections::HashMap;
 use crate::voxel_world::{
-    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkBaseTerrainReady, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
+    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
     editing::apply_voxel_changes,
     storage::ChunkMap,
 };
@@ -89,7 +89,7 @@ struct WaitForBaseTerrain;
 struct ComputingBaseTerrain(Task<BaseTerrainTaskResult>);
 
 #[derive(Component, Debug)]
-struct WaitForNeighbors;
+struct WaitForFeatures;
 
 #[derive(Component, Debug)]
 struct ComputingFeatures(Task<FeaturesTaskResult>);
@@ -244,7 +244,7 @@ fn handle_base_terrain_tasks(
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
                     entity_world.remove::<ComputingBaseTerrain>();
-                    entity_world.insert((ChunkBaseTerrainReady, WaitForNeighbors));
+                    entity_world.insert(WaitForFeatures);
                 }
             });
         }
@@ -253,21 +253,20 @@ fn handle_base_terrain_tasks(
 
 fn queue_feature_tasks(
     mut commands: Commands,
-    target_chunks: Query<(Entity, &TerrainChunk, &TerrainColumnRef), With<WaitForNeighbors>>,
+    target_chunks: Query<(Entity, &TerrainChunk), With<WaitForFeatures>>,
     computing: Query<(), With<ComputingFeatures>>,
     column_artifacts: Query<&AltitudeArtifact>,
     world_gen_config: Res<WorldGenConfig>,
     render_distance_params: Res<RenderDistanceParams>,
-    chunk_entities: Res<ChunkEntities>,
-    base_terrain_ready: Query<(), With<ChunkBaseTerrainReady>>,
+    terrain_columns: Res<TerrainColumns>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
     let config = world_gen_config.biome_registry.clone();
     let seed = world_gen_config.seed;
 
     let available = MAX_FEATURE_TASKS_IN_FLIGHT.saturating_sub(computing.iter().count());
-    for (entity, terrain_chunk, column_ref) in target_chunks.iter()
-        .k_smallest_by_key(available, |(_, chunk, _)| {
+    for (entity, terrain_chunk) in target_chunks.iter()
+        .k_smallest_by_key(available, |(_, chunk)| {
             (chunk.position - render_distance_params.player_chunk).length_squared()
         })
     {
@@ -277,39 +276,31 @@ fn queue_feature_tasks(
             continue;
         }
 
-        // Check neighbors (3x3 area in XZ plane)
-        let mut all_neighbors_ready = true;
+        let mut feature_columns = HashMap::new();
         for dx in -1..=1 {
             for dz in -1..=1 {
-                if dx == 0 && dz == 0 { continue; }
-                let neighbor_pos = chunk_pos + IVec3::new(dx, 0, dz);
-                let neighbor_ready = chunk_entities.entities.get(&neighbor_pos)
-                    .is_some_and(|entity| base_terrain_ready.get(*entity).is_ok());
-                if !neighbor_ready {
-                    all_neighbors_ready = false;
-                    break;
-                }
+                let column_pos = chunk_pos.xz() + IVec2::new(dx, dz);
+                let Some(column_entity) = terrain_columns.entities.get(&column_pos) else { continue; };
+                let Ok(artifact) = column_artifacts.get(*column_entity) else { continue; };
+                feature_columns.insert(column_pos, generation::FeatureColumnMaps {
+                    altitude_map: artifact.altitude_map.clone(),
+                    biome_map: artifact.biome_map.clone(),
+                });
             }
         }
 
-        if all_neighbors_ready {
-            let Ok(artifact) = column_artifacts.get(column_ref.0) else {
-                continue;
-            };
-
+        if feature_columns.len() == 9 {
             let config = config.clone();
-            let altitude_map = artifact.altitude_map.clone();
-            let biome_map = artifact.biome_map.clone();
 
             let task = thread_pool.spawn(async move {
-                let changes = generation::generate_features(chunk_pos, seed, &altitude_map, &biome_map, &config);
+                let changes = generation::generate_features(chunk_pos, seed, &feature_columns, &config);
 
                 FeaturesTaskResult { changes }
             });
             
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
-                    entity_world.remove::<WaitForNeighbors>();
+                    entity_world.remove::<WaitForFeatures>();
                     entity_world.insert(ComputingFeatures(task));
                 }
             });

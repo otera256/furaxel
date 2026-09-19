@@ -1,6 +1,8 @@
 use bevy::prelude::*;
+use bevy::platform::collections::HashMap;
 use block_mesh::ndshape::{AbstractShape, ConstShape2u32};
 use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex, RidgedMulti};
+use std::sync::Arc;
 use crate::voxel_world::core::{
     terrain_chunk::TerrainChunkData,
     coordinates::{TERRAIN_CHUNK_SIZE, VOXEL_SIZE},
@@ -197,44 +199,85 @@ pub fn generate_base_terrain(
     chunk_data
 }
 
+#[derive(Debug, Clone)]
+pub struct FeatureColumnMaps {
+    pub altitude_map: Arc<[i32]>,
+    pub biome_map: Arc<[u8]>,
+}
+
+const FEATURE_ORIGIN_MARGIN: i32 = 8;
+
 pub fn generate_features(
     chunk_pos: IVec3,
     seed: u32,
-    altitude_map: &[i32],
-    biome_map: &[u8],
+    columns: &HashMap<IVec2, FeatureColumnMaps>,
     config: &BiomeRegistry,
 ) -> Vec<(IVec3, Voxel)> {
     let mut changes = Vec::new();
-    
-    for z in 0..TERRAIN_CHUNK_SIZE {
-        for x in 0..TERRAIN_CHUNK_SIZE {
-            let idx = AltitudeMapShape{}.linearize([x, z]) as usize;
-            let altitude = altitude_map[idx];
-            
-            let local_y = altitude - chunk_pos.y * TERRAIN_CHUNK_SIZE as i32;
-            
-            if local_y >= 0 && local_y < TERRAIN_CHUNK_SIZE as i32 {
-                let world_x = x as i32 + chunk_pos.x * TERRAIN_CHUNK_SIZE as i32;
-                let world_z = z as i32 + chunk_pos.z * TERRAIN_CHUNK_SIZE as i32;
-                
-                let biome_id = biome_map[idx];
-                let biome = config.get_biome_data_by_id(biome_id);
-                
-                if !biome.features.is_empty() {
-                    for (i, (feature, probability)) in biome.features.iter().enumerate() {
-                        let prob_hash = feature::hash(world_x, world_z, seed.wrapping_add(i as u32));
-                        let prob = (prob_hash % 10000) as f32 / 10000.0;
-                        
-                        if prob < *probability {
-                            // Place feature at (world_x, altitude + 1, world_z)
-                            let origin = IVec3::new(world_x, altitude + 1, world_z);
-                            let feature_changes = feature.place(origin, seed);
-                            changes.extend(feature_changes);
-                        }
+    let chunk_size = TERRAIN_CHUNK_SIZE as i32;
+    let chunk_min = chunk_pos * chunk_size;
+    let chunk_max = chunk_min + IVec3::splat(chunk_size);
+
+    for world_z in (chunk_min.z - FEATURE_ORIGIN_MARGIN)..(chunk_max.z + FEATURE_ORIGIN_MARGIN) {
+        for world_x in (chunk_min.x - FEATURE_ORIGIN_MARGIN)..(chunk_max.x + FEATURE_ORIGIN_MARGIN) {
+            let world_xz = IVec2::new(world_x, world_z);
+            let column_pos = world_xz.div_euclid(IVec2::splat(chunk_size));
+            let local = world_xz.rem_euclid(IVec2::splat(chunk_size)).as_uvec2();
+            let Some(column) = columns.get(&column_pos) else { continue; };
+            let idx = AltitudeMapShape {}.linearize([local.x, local.y]) as usize;
+            let altitude = column.altitude_map[idx];
+            let biome = config.get_biome_data_by_id(column.biome_map[idx]);
+
+            for (feature_index, (feature, probability)) in biome.features.iter().enumerate() {
+                let probability_hash = feature::hash(
+                    world_x,
+                    world_z,
+                    seed.wrapping_add(feature_index as u32),
+                );
+                let sample = (probability_hash % 10000) as f32 / 10000.0;
+                if sample >= *probability { continue; }
+
+                let origin = IVec3::new(world_x, altitude + 1, world_z);
+                for (position, voxel) in feature.place(origin, seed) {
+                    if position.cmpge(chunk_min).all() && position.cmplt(chunk_max).all() {
+                        changes.push((position, voxel));
                     }
                 }
             }
         }
     }
     changes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use block_mesh::ndshape::ConstShape;
+
+    #[test]
+    fn pulled_features_are_deterministic_and_clipped_to_the_target_chunk() {
+        let mut columns = HashMap::new();
+        for x in -1..=1 {
+            for z in -1..=1 {
+                columns.insert(
+                    IVec2::new(x, z),
+                    FeatureColumnMaps {
+                        altitude_map: vec![0; AltitudeMapShape::USIZE].into(),
+                        biome_map: vec![7; AltitudeMapShape::USIZE].into(),
+                    },
+                );
+            }
+        }
+        let registry = BiomeRegistry::new(12345);
+
+        let first = generate_features(IVec3::ZERO, 12345, &columns, &registry);
+        let second = generate_features(IVec3::ZERO, 12345, &columns, &registry);
+
+        assert!(!first.is_empty());
+        assert_eq!(first, second);
+        assert!(first.iter().all(|(position, _)| {
+            position.cmpge(IVec3::ZERO).all()
+                && position.cmplt(IVec3::splat(TERRAIN_CHUNK_SIZE as i32)).all()
+        }));
+    }
 }
