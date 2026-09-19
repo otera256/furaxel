@@ -5,6 +5,7 @@ pub mod chunking;
 pub mod editing;
 mod edit_store;
 pub mod player;
+pub mod raycast;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};
 use bevy::time::common_conditions::on_timer;
