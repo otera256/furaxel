@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
+pub use crate::voxel_world::edit_store::{VoxelEditPersistence, VoxelEditStore};
+
 use crate::voxel_world::{
     core::{ChunkContentRevision, ChunkEntities, ChunkMeshDirty, Voxel},
+    edit_store::{load_voxel_edits, save_dirty_voxel_edits},
     storage::{ChunkMap, VoxelMutationReport, VoxelWritePolicy},
 };
 
@@ -9,8 +12,14 @@ pub struct VoxelEditingPlugin;
 
 impl Plugin for VoxelEditingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<VoxelEditRequest>()
-            .add_systems(Update, apply_requested_voxel_edits);
+        app.init_resource::<VoxelEditStore>()
+            .init_resource::<VoxelEditPersistence>()
+            .add_message::<VoxelEditRequest>()
+            .add_systems(Startup, load_voxel_edits)
+            .add_systems(
+                Update,
+                (apply_requested_voxel_edits, save_dirty_voxel_edits).chain(),
+            );
     }
 }
 
@@ -71,8 +80,11 @@ fn apply_requested_voxel_edits(
     mut chunk_map: ResMut<ChunkMap>,
     chunk_entities: Res<ChunkEntities>,
     mut revisions: Query<&mut ChunkContentRevision>,
+    mut edit_store: ResMut<VoxelEditStore>,
 ) {
     for request in requests.read() {
+        // Record first: edits aimed at an unloaded chunk must not be lost.
+        edit_store.record(&request.changes);
         apply_voxel_changes(
             &mut commands,
             &mut chunk_map,
@@ -93,6 +105,7 @@ mod tests {
     fn edit_request_advances_revision_and_marks_mesh_dirty() {
         let mut app = App::new();
         app.add_plugins(VoxelEditingPlugin)
+            .insert_resource(VoxelEditPersistence { path: None })
             .insert_resource(ChunkMap::default())
             .insert_resource(ChunkEntities::default());
 
@@ -116,6 +129,34 @@ mod tests {
         assert_eq!(
             app.world().resource::<ChunkMap>().get_at(IVec3::new(1, 1, 1)),
             Some(Voxel::STONE),
+        );
+        assert_eq!(
+            app.world()
+                .resource::<VoxelEditStore>()
+                .changes_for_chunk(IVec3::ZERO),
+            vec![(IVec3::new(1, 1, 1), Voxel::STONE)],
+        );
+    }
+
+    #[test]
+    fn edit_to_an_unloaded_chunk_is_retained() {
+        let mut app = App::new();
+        app.add_plugins(VoxelEditingPlugin)
+            .insert_resource(VoxelEditPersistence { path: None })
+            .insert_resource(ChunkMap::default())
+            .insert_resource(ChunkEntities::default());
+
+        let position = IVec3::new(-65, 130, 7);
+        app.world_mut()
+            .write_message(VoxelEditRequest::single(position, Voxel::STONE));
+        app.update();
+
+        assert_eq!(app.world().resource::<ChunkMap>().get_at(position), None);
+        assert_eq!(
+            app.world()
+                .resource::<VoxelEditStore>()
+                .changes_for_chunk(IVec3::new(-2, 2, 0)),
+            vec![(position, Voxel::STONE)],
         );
     }
 }

@@ -3,6 +3,7 @@ pub mod storage;
 pub mod pipelines;
 pub mod chunking;
 pub mod editing;
+mod edit_store;
 pub mod player;
 
 use bevy::{light::CascadeShadowConfigBuilder, prelude::*};

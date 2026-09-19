@@ -11,6 +11,7 @@ use std::sync::Arc;
 use bevy::platform::collections::HashMap;
 use crate::voxel_world::{
     core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
+    edit_store::VoxelEditStore,
     editing::apply_voxel_changes,
     storage::ChunkMap,
 };
@@ -310,12 +311,13 @@ fn queue_feature_tasks(
 
 fn handle_feature_tasks(
     mut commands: Commands,
-    mut tasks: Query<(Entity, &mut ComputingFeatures)>,
+    mut tasks: Query<(Entity, &TerrainChunk, &mut ComputingFeatures)>,
     chunk_entities: Res<ChunkEntities>,
     mut chunk_map: ResMut<ChunkMap>,
     mut revisions: Query<&mut ChunkContentRevision>,
+    edit_store: Res<VoxelEditStore>,
 ) {
-    for (entity, mut task) in &mut tasks {
+    for (entity, terrain_chunk, mut task) in &mut tasks {
         if let Some(result) = check_ready(&mut task.0) {
             apply_voxel_changes(
                 &mut commands,
@@ -324,6 +326,17 @@ fn handle_feature_tasks(
                 &mut revisions,
                 result.changes,
                 crate::voxel_world::storage::VoxelWritePolicy::ReplaceSoft,
+            );
+
+            // Generated features are reproducible; player edits are authoritative
+            // and are always replayed last when a chunk is (re)generated.
+            apply_voxel_changes(
+                &mut commands,
+                &mut chunk_map,
+                &chunk_entities,
+                &mut revisions,
+                edit_store.changes_for_chunk(terrain_chunk.position),
+                crate::voxel_world::storage::VoxelWritePolicy::Always,
             );
 
             commands.queue(move |world: &mut World| {
