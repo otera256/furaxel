@@ -6,6 +6,20 @@ pub struct TerrainChunk {
     pub position: IVec3,
 }
 
+/// Monotonically increasing version of a chunk's authoritative voxel data.
+///
+/// Asynchronous consumers capture this value when they start and must compare
+/// it again before committing their result. This prevents an older task from
+/// overwriting work produced from newer voxel data.
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkContentRevision(pub u64);
+
+impl ChunkContentRevision {
+    pub fn advance(&mut self) {
+        self.0 = self.0.wrapping_add(1);
+    }
+}
+
 #[allow(dead_code)]
 impl TerrainChunk {
     pub fn chunk_origin(&self) -> IVec3 {

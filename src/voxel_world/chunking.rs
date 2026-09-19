@@ -5,7 +5,7 @@ use crate::voxel_world::{
     core::{
         chunk_range::{is_within_active_chunk_range, should_unload_chunk},
         coordinates::TERRAIN_CHUNK_LENGTH,
-        ChunkEntities, RenderDistanceParams, TerrainChunk
+        ChunkContentRevision, ChunkEntities, RenderDistanceParams, TerrainChunk
     },
     storage::ChunkMap,
     pipelines::cpu_noise::WaitForTerrainGeneration
@@ -62,6 +62,7 @@ pub fn update_chunk_entities(
             TerrainChunk {
                 position: chunk_pos,
             },
+            ChunkContentRevision::default(),
             WaitForTerrainGeneration,
             Transform::from_translation(chunk_pos.as_vec3() * TERRAIN_CHUNK_LENGTH),
             InheritedVisibility::default(),

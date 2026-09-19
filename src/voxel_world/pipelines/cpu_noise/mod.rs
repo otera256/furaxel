@@ -10,7 +10,7 @@ use bevy::{
 use itertools::Itertools;
 use std::sync::Arc;
 use crate::voxel_world::{
-    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
+    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, RenderDistanceParams, TerrainChunk},
     pipelines::cpu_noise::storage::TerrainGenerationStorage,
     storage::ChunkMap,
 };
@@ -209,6 +209,7 @@ fn queue_base_terrain_tasks(
 fn handle_base_terrain_tasks(
     mut commands: Commands,
     mut tasks: Query<(Entity, &mut ComputingBaseTerrain)>,
+    mut revisions: Query<&mut ChunkContentRevision>,
     mut chunk_map: ResMut<ChunkMap>,
     mut storage: ResMut<TerrainGenerationStorage>,
 ) {
@@ -216,6 +217,9 @@ fn handle_base_terrain_tasks(
         if let Some(result) = check_ready(&mut task.0) {
             chunk_map.insert(result.chunk_data);
             storage.base_terrain_generated.insert(result.chunk_pos);
+            if let Ok(mut revision) = revisions.get_mut(entity) {
+                revision.advance();
+            }
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {
                     entity_world.remove::<ComputingBaseTerrain>();
@@ -294,10 +298,18 @@ fn handle_feature_tasks(
     mut storage: ResMut<TerrainGenerationStorage>,
     chunk_entities: Res<ChunkEntities>,
     mut chunk_map: ResMut<ChunkMap>,
+    mut revisions: Query<&mut ChunkContentRevision>,
 ) {
     for (entity, mut task, terrain_chunk) in &mut tasks {
         if let Some(result) = check_ready(&mut task.0) {
-            chunk_map.set_bulk(result.changes);
+            let changed_chunks = chunk_map.set_bulk(result.changes);
+            for changed_chunk in changed_chunks {
+                if let Some(changed_entity) = chunk_entities.entities.get(&changed_chunk)
+                    && let Ok(mut revision) = revisions.get_mut(*changed_entity)
+                {
+                    revision.advance();
+                }
+            }
 
             commands.queue(move |world: &mut World| {
                 if let Ok(mut entity_world) = world.get_entity_mut(entity) {

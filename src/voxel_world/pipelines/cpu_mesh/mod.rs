@@ -37,7 +37,8 @@ fn trigger_mesh_update(
     mut events: MessageReader<ChunkGeneratedEvent>,
     storage: Res<TerrainGenerationStorage>,
     chunk_entities: Res<ChunkEntities>,
-    mesh_queued_query: Query<&MeshQueued>,
+    revisions: Query<&crate::voxel_world::core::ChunkContentRevision>,
+    mesh_state_query: Query<(Option<&ComputingMesh>, Option<&MeshArtifact>)>,
 ) {
     for event in events.read() {
         let chunk_pos = event.0;
@@ -52,15 +53,32 @@ fn trigger_mesh_update(
         for pos in candidates {
             if storage.fully_generated.contains(&pos) {
                 if let Some(entity) = chunk_entities.entities.get(&pos) {
-                    let has_mesh = mesh_queued_query.get(*entity).is_ok();
-
                     let all_neighbors_ready = iproduct!(-1..=1, -1..=1, -1..=1)
                         .all(|(dx, dy, dz)| {
                             let neighbor_pos = pos + IVec3::new(dx, dy, dz);
                             storage.fully_generated.contains(&neighbor_pos)
                         });
 
-                    if !has_mesh && all_neighbors_ready {
+                    let current_input = current_mesh_input_stamp(
+                        pos,
+                        &chunk_entities,
+                        &revisions,
+                    );
+                    let (is_computing, is_current) = mesh_state_query
+                        .get(*entity)
+                        .map(|(job, artifact)| {
+                            (
+                                job.is_some(),
+                                artifact
+                                    .zip(current_input.as_ref())
+                                    .is_some_and(|(artifact, current)| {
+                                        artifact.built_from == *current
+                                    }),
+                            )
+                        })
+                        .unwrap_or((false, false));
+
+                    if !is_computing && !is_current && all_neighbors_ready {
                         let entity = *entity;
                         commands.queue(move |world: &mut World| {
                             if let Ok(mut entity_world) = world.get_entity_mut(entity) {
