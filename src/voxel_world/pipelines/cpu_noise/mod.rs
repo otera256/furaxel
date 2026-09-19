@@ -5,12 +5,13 @@ pub mod generation;
 use bevy::{
     prelude::*,
     tasks::{futures::check_ready, AsyncComputeTaskPool, Task},
+    time::common_conditions::on_timer,
 };
 use itertools::Itertools;
-use std::sync::Arc;
-use bevy::platform::collections::HashMap;
+use std::{sync::Arc, time::Duration};
+use bevy::platform::collections::{HashMap, HashSet};
 use crate::voxel_world::{
-    core::{chunk_range::is_within_active_chunk_range, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
+    core::{chunk_range::{is_within_active_chunk_range, should_unload_chunk}, terrain_chunk::TerrainChunkData, voxel::Voxel, ChunkContentRevision, ChunkEntities, ChunkGeneratedEvent, ChunkGenerationComplete, RenderDistanceParams, TerrainChunk},
     edit_store::VoxelEditStore,
     editing::apply_voxel_changes,
     storage::ChunkMap,
@@ -36,6 +37,10 @@ impl Plugin for CpuNoiseTerrainGenerationPlugin {
                 handle_feature_tasks,
                 emit_chunk_generated_events,
             ))
+            .add_systems(
+                PostUpdate,
+                unload_distant_terrain_columns.run_if(on_timer(Duration::from_secs(5))),
+            )
             ;
     }
 }
@@ -358,6 +363,31 @@ fn emit_chunk_generated_events(
     }
 }
 
+fn unload_distant_terrain_columns(
+    mut commands: Commands,
+    mut terrain_columns: ResMut<TerrainColumns>,
+    render_distance_params: Res<RenderDistanceParams>,
+    references: Query<&TerrainColumnRef>,
+) {
+    let referenced = references.iter().map(|reference| reference.0).collect::<HashSet<_>>();
+    let player_y = render_distance_params.player_chunk.y;
+    let to_remove = terrain_columns
+        .entities
+        .iter()
+        .filter_map(|(&column_pos, &entity)| {
+            let chunk_pos = IVec3::new(column_pos.x, player_y, column_pos.y);
+            (should_unload_chunk(chunk_pos, &render_distance_params)
+                && !referenced.contains(&entity))
+                .then_some((column_pos, entity))
+        })
+        .collect::<Vec<_>>();
+
+    for (column_pos, entity) in to_remove {
+        terrain_columns.entities.remove(&column_pos);
+        commands.entity(entity).despawn();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,5 +414,32 @@ mod tests {
         assert_eq!(lower_column, upper_column);
         assert_eq!(app.world().resource::<TerrainColumns>().entities.len(), 1);
         assert!(app.world().get::<WaitForAltitude>(lower_column).is_some());
+    }
+
+    #[test]
+    fn unreferenced_distant_terrain_columns_are_evicted() {
+        let mut app = App::new();
+        app.insert_resource(TerrainColumns::default())
+            .insert_resource(RenderDistanceParams {
+                player_chunk: IVec3::ZERO,
+                horizontal: 4,
+                vertical: 2,
+            })
+            .add_systems(Update, unload_distant_terrain_columns);
+
+        let near = app.world_mut().spawn(TerrainColumn { position: IVec2::ZERO }).id();
+        let far_position = IVec2::new(20, 0);
+        let far = app.world_mut().spawn(TerrainColumn { position: far_position }).id();
+        app.world_mut().resource_mut::<TerrainColumns>().entities.extend([
+            (IVec2::ZERO, near),
+            (far_position, far),
+        ]);
+
+        app.update();
+
+        let columns = app.world().resource::<TerrainColumns>();
+        assert_eq!(columns.entities.get(&IVec2::ZERO), Some(&near));
+        assert!(!columns.entities.contains_key(&far_position));
+        assert!(app.world().get_entity(far).is_err());
     }
 }
