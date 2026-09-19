@@ -99,7 +99,7 @@ fn emit_mouse_voxel_edits(
     mouse_buttons: Option<Res<ButtonInput<MouseButton>>>,
     chunk_map: Res<ChunkMap>,
     state: Res<VoxelEditorState>,
-    cameras: Query<&Transform, (With<Player>, With<Camera3d>)>,
+    cameras: Query<(&Camera, &Transform), (With<Player>, With<Camera3d>)>,
     cursor_options: Query<&CursorOptions, With<PrimaryWindow>>,
     mut requests: MessageWriter<VoxelEditRequest>,
 ) {
@@ -112,7 +112,7 @@ fn emit_mouse_voxel_edits(
     if cursor_options.grab_mode == CursorGrabMode::None {
         return;
     }
-    let Some(transform) = cameras.iter().next() else {
+    let Some((camera, transform)) = cameras.iter().next() else {
         return;
     };
     if !mouse_buttons.just_pressed(MouseButton::Left)
@@ -121,10 +121,22 @@ fn emit_mouse_voxel_edits(
         return;
     }
 
-    let forward = transform.forward();
-    let direction = Vec3::new(forward.x, forward.y, forward.z);
-    let Some(hit) = raycast_chunk_map(&chunk_map, transform.translation, direction, state.reach)
-    else {
+    let fallback_forward = transform.forward();
+    let fallback = (
+        transform.translation,
+        Vec3::new(fallback_forward.x, fallback_forward.y, fallback_forward.z),
+    );
+    let (origin, direction) = camera
+        .logical_viewport_rect()
+        .and_then(|viewport| {
+            let center = (viewport.min + viewport.max) * 0.5;
+            camera
+                .viewport_to_world(&GlobalTransform::from(*transform), center)
+                .ok()
+                .map(|ray| (ray.origin, ray.direction.as_vec3()))
+        })
+        .unwrap_or(fallback);
+    let Some(hit) = raycast_chunk_map(&chunk_map, origin, direction, state.reach) else {
         return;
     };
 
