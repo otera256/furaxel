@@ -35,6 +35,8 @@ pub struct MeshArtifact {
     pub built_from: MeshInputStamp,
 }
 
+const MAX_MESH_TASKS_IN_FLIGHT: usize = 16;
+
 const FACE_NEIGHBORS: [IVec3; 6] = [
     IVec3::NEG_X,
     IVec3::X,
@@ -82,11 +84,13 @@ pub fn queue_mesh_tasks(
     material_repo: Res<MaterialRepository>,
     chunk_entities: Res<ChunkEntities>,
     revisions: Query<&ChunkContentRevision>,
+    computing: Query<(), With<ComputingMesh>>,
     chunks: Query<(Entity, &TerrainChunk), (With<ChunkMeshDirty>, Without<ComputingMesh>, Without<NeedImmediateMeshUpdate>)>,
 ) {
     let thread_pool = AsyncComputeTaskPool::get();
+    let available = MAX_MESH_TASKS_IN_FLIGHT.saturating_sub(computing.iter().count());
 
-    for (entity, chunk) in chunks.iter() {
+    for (entity, chunk) in chunks.iter().take(available) {
         let Some(input) = current_mesh_input_stamp(chunk.position, &chunk_entities, &revisions) else {
             continue;
         };

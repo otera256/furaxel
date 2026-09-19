@@ -19,7 +19,7 @@
     *   Perlin ノイズ (FBM, RidgedMulti, Billow) を組み合わせて、高度用の2Dノイズマップを生成します。
     *   気温と湿度のノイズマップに基づいてバイオームを決定します。
 *   **出力**: `AltitudeMap` (`Vec<i32>`) および `BiomeMap` (`Vec<u8>`)。
-*   **保存**: 結果は `TerrainGenerationStorage` に `Arc<[T]>` としてキャッシュされ、スレッド間で低コストで共有されます。
+*   **保存**: 結果は XZ ごとの `TerrainColumn` Entity に `Arc<[T]>` として保持され、上下のチャンクから共有されます。
 
 ### 2. ベース地形の生成 (`ComputingBaseTerrain`)
 
@@ -51,7 +51,7 @@
 *   `generation.rs`: コアとなる生成ロジック（ノイズ、ブロック配置ルール）を含む純粋関数群。
 *   `biomes.rs`: `Biome`、`BiomeRegistry` の定義、およびバイオーム固有のパラメータ。
 *   `feature.rs`: フィーチャー（例: `TreeFeature`）の定義とその配置ロジック。
-*   `storage.rs`: 生成データをキャッシュするためのリソース定義 (`TerrainGenerationStorage`)。
+*   `mod.rs`: `TerrainColumn` Entity と非同期タスクのライフサイクルも管理します。
 
 ## 新しいバイオームやフィーチャーの追加
 
