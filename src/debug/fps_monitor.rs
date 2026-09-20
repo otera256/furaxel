@@ -20,7 +20,7 @@ impl Plugin for FpsMonitorPlugin {
             config: FpsOverlayConfig {
                 text_config: TextFont {
                     // Here we define size of our overlay
-                    font_size: 42.0,
+                    font_size: FontSize::Px(42.0),
                     // If we want, we can use a custom font
                     font: default(),
                     // We could also disable font smoothing,

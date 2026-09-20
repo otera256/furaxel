@@ -70,7 +70,7 @@ fn setup_world(
     commands.spawn((
         DirectionalLight {
             color: Color::srgb(0.98, 0.95, 0.82),
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             illuminance: 20000.0,
             ..default()
         },

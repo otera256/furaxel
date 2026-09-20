@@ -1,6 +1,13 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::{core_pipeline::prepass::DepthPrepass, input::mouse::AccumulatedMouseMotion, pbr::Atmosphere, prelude::*, window::{CursorGrabMode, CursorOptions, PrimaryWindow}};
+use bevy::{
+    core_pipeline::prepass::DepthPrepass,
+    input::mouse::AccumulatedMouseMotion,
+    light::{atmosphere::ScatteringMedium, Atmosphere},
+    pbr::AtmosphereSettings,
+    prelude::*,
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
+};
 
 use crate::voxel_world::core::{RenderDistanceParams, coordinates::TERRAIN_CHUNK_LENGTH};
 
@@ -20,12 +27,30 @@ impl Plugin for VoxelPlayerPlugin {
     }
 }
 
-fn setup_player(mut commands: Commands) {
+fn setup_player(
+    mut commands: Commands,
+    mut scattering_mediums: ResMut<Assets<ScatteringMedium>>,
+) {
+    let atmosphere = Atmosphere::earth(scattering_mediums.add(ScatteringMedium::earth(256, 256)));
+    let atmosphere_inner_radius = atmosphere.inner_radius;
+
+    // Keep the camera near the atmosphere's surface while retaining the game's
+    // existing scene scale (one scene unit corresponds to one world meter).
+    commands.spawn((
+        atmosphere,
+        Transform::from_translation(Vec3::new(
+            0.0,
+            150.0 - atmosphere_inner_radius,
+            0.0,
+        )),
+    ));
+
     commands.spawn((
         Camera3d::default(),
         Player,
         // 水面のレンダリングなどのためにDepthPrepassを有効化
         DepthPrepass,
+        AtmosphereSettings::default(),
         DistanceFog {
             color: Color::srgba(0.35, 0.48, 0.66, 1.0),
             directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
@@ -36,7 +61,6 @@ fn setup_player(mut commands: Commands) {
                 Color::srgb(0.8, 0.844, 1.0), // atmospheric inscattering color (light gained due to scattering from the sun)
             ),
         },
-        Atmosphere::default(),
         Transform::from_xyz(0.0, 150.0, 0.0).looking_at(Vec3::new(0.0, 150.0, 10.0), Vec3::Y),
     ));
 }

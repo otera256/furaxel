@@ -292,7 +292,12 @@ pub fn material_setup(
     };
     
     let default_material = materials.add(StandardMaterial {
-        base_color_texture: Some(asset_server.load_with_settings("textures/default.png", loading_settings)),
+        base_color_texture: Some(
+            asset_server
+                .load_builder()
+                .with_settings(loading_settings)
+                .load("textures/default.png"),
+        ),
         ..default()
     });
 
@@ -355,7 +360,12 @@ fn create_voxel_material_handles(
         VoxelMaterial::Cross(def) => {
             let mut def = def;
             def.alpha_mode = AlphaMode::Mask(0.5);
-            let texture = def.texture.map(|path| asset_server.load_with_settings(path, loading_settings));
+            let texture = def.texture.map(|path| {
+                asset_server
+                    .load_builder()
+                    .with_settings(loading_settings)
+                    .load(path)
+            });
             let handle = materials.add(StandardMaterial {
                 base_color: def.base_color,
                 base_color_texture: texture,
@@ -372,7 +382,12 @@ fn create_voxel_material_handles(
             let material = water_materials.add(WaterMaterial {
                 base: StandardMaterial { 
                     base_color: Color::linear_rgba(0.0, 0.5, 1.0, 0.2),
-                    base_color_texture: def.texture.map(|path| asset_server.load_with_settings(path, loading_settings)),
+                    base_color_texture: def.texture.map(|path| {
+                        asset_server
+                            .load_builder()
+                            .with_settings(loading_settings)
+                            .load(path)
+                    }),
                     perceptual_roughness: 0.08,
                     metallic: 0.1,
                     reflectance: 1.0,
@@ -392,7 +407,12 @@ fn create_standard_material(
     def: voxel::MaterialDef,
     loading_settings: impl Fn(&mut ImageLoaderSettings) + Copy + Send + Sync + 'static,
 ) -> Handle<StandardMaterial> {
-    let texture = def.texture.map(|path| asset_server.load_with_settings(path, loading_settings));
+    let texture = def.texture.map(|path| {
+        asset_server
+            .load_builder()
+            .with_settings(loading_settings)
+            .load(path)
+    });
     materials.add(StandardMaterial {
         base_color: def.base_color,
         base_color_texture: texture,
